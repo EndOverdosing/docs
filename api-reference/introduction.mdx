@@ -1,33 +1,93 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: Introduction
+description: Vyla API — stream and download movies & TV shows via TMDB ID
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and serves them through a unified JSON interface. Pass any TMDB ID and get back direct stream URLs, subtitles, and an embeddable player.
+## Base URL
 
-## Welcome
+```
+https://vyla-api.pages.dev
+```
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+## Quick Start
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+Fetch sources for Inception (TMDB ID: 27205):
 
-## Authentication
+```bash
+curl https://vyla-api.pages.dev/api/movie?id=27205
+```
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Embed the player in an iframe:
+
+```html
+<iframe
+  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
+  width="100%"
+  height="500"
+  allowfullscreen
+></iframe>
+```
+
+## Providers
+
+Sources are scraped concurrently from all providers, deduplicated, filtered to English audio, and sorted by quality before being returned.
+
+| Provider | Type | Notes |
+|----------|------|-------|
+| 02MovieDownloader | mp4 / hls | Requires token verification |
+| VixSrc | hls | Token + expiry from page HTML |
+| VidSrc | hls | Multi-domain template resolution |
+| Uembed | hls | Multi-API with m3u8 variant resolution |
+| VidRock | hls / mp4 | AES-CBC encrypted item IDs |
+| RgShows | mp4 | Single stream per title |
+| VidZee | hls | AES-CBC encrypted stream URLs |
+| 02Embed | hls | Rewritten via HLS proxy |
+
+## Quality Priority
+
+Sources are ranked and sorted in this order:
+
+```
+4K / 2160p > 1440p > 1080p > 720p > 480p > 360p > 240p > HD > Auto > Unknown
+```
+
+## CORS
+
+All endpoints return:
+
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, HEAD, OPTIONS
+Access-Control-Allow-Headers: *
+```
+
+## Source Object
+
+Every source in a response follows this shape:
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
+{
+  "url": "https://...",
+  "type": "hls | mp4 | mkv",
+  "quality": "1080p",
+  "provider": "VixSrc",
+  "audioTracks": [
+    { "language": "eng", "label": "English" }
+  ],
+  "headers": {
+    "Referer": "https://...",
+    "Origin": "https://..."
   }
-]
+}
+```
+
+## Subtitle Object
+
+```json
+{
+  "url": "https://...",
+  "label": "English",
+  "format": "vtt | srt"
+}
 ```

@@ -1,0 +1,50 @@
+---
+title: Stream TV
+description: Alias of /api/tv nested under the /stream path
+---
+
+## Endpoint
+
+```
+GET /api/stream/tv
+```
+
+Identical to [`/api/tv`](/api-reference/tv) — scrapes all providers for a TV episode and returns sources and subtitles.
+
+## Parameters
+
+| Name      | Type   | Required | Default | Description       |
+|-----------|--------|----------|---------|-------------------|
+| `id`      | string | ✅       | —       | TMDB series ID    |
+| `season`  | string | ❌       | `1`     | Season number     |
+| `episode` | string | ❌       | `1`     | Episode number    |
+
+## Example Request
+
+```bash
+curl "https://vyla-api.pages.dev/api/stream/tv?id=1396&season=1&episode=1"
+```
+
+## Example Response
+
+```json
+{
+  "success": true,
+  "results_found": 3,
+  "sources": [
+    {
+      "url": "https://stream.example.com/ep.m3u8",
+      "type": "hls",
+      "quality": "1080p",
+      "provider": "VidZee",
+      "audioTracks": [{ "language": "eng", "label": "English" }],
+      "headers": { "Referer": "https://player.vidzee.wtf" }
+    }
+  ],
+  "subtitles": []
+}
+```
+
+<Note>
+  This is a path alias. For most use cases, prefer [`/api/tv`](/api-reference/tv).
+</Note>

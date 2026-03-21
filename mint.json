@@ -1,0 +1,55 @@
+{
+    "name": "Vyla API",
+    "logo": {
+        "dark": "/logo/dark.png",
+        "light": "/logo/light.png"
+    },
+    "favicon": "/favicon.svg",
+    "colors": {
+        "primary": "#000000",
+        "light": "#ffffff",
+        "dark": "#000000"
+    },
+    "topbarLinks": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/EndOverdosing/Vyla-Player-API"
+        }
+    ],
+    "topbarCtaButton": {
+        "name": "API",
+        "url": "https://vyla-api.pages.dev",
+        "type": "link",
+        "style": "pill"
+    },
+    "navigation": [
+        {
+            "group": "Getting Started",
+            "pages": [
+                "introduction"
+            ]
+        },
+        {
+            "group": "Core Endpoints",
+            "pages": [
+                "api-reference/movie",
+                "api-reference/tv",
+                "api-reference/player",
+                "api-reference/proxy",
+                "api-reference/download"
+            ]
+        },
+        {
+            "group": "Stream Aliases",
+            "pages": [
+                "api-reference/stream-movie",
+                "api-reference/stream-tv"
+            ]
+        }
+    ],
+    "footer": {
+        "socials": {
+            "github": "https://github.com/EndOverdosing/Vyla-Player-API"
+        }
+    }
+}

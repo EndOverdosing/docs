@@ -1,0 +1,72 @@
+---
+title: Player
+description: Embeddable fullscreen video player that scrapes and streams automatically
+---
+
+## Endpoint
+
+```
+GET /api/player
+```
+
+Returns a complete HTML page with a fullscreen video player. Scrapes all providers, validates sources server-side, and begins playback automatically. If a source fails, it falls through to the next one.
+
+## Parameters
+
+| Name      | Type   | Required | Default   | Description                  |
+|-----------|--------|----------|-----------|------------------------------|
+| `id`      | string | ✅       | —         | TMDB ID                      |
+| `type`    | string | ❌       | `movie`   | `movie` or `tv`              |
+| `season`  | string | ❌       | `1`       | Season number (TV only)      |
+| `episode` | string | ❌       | `1`       | Episode number (TV only)     |
+| `nocheck` | string | ❌       | —         | Set to `1` to skip source validation |
+
+## Example URLs
+
+```
+# Movie
+https://vyla-api.pages.dev/api/player?type=movie&id=27205
+
+# TV episode
+https://vyla-api.pages.dev/api/player?type=tv&id=1396&season=1&episode=1
+
+# Skip source validation (faster load, may hit dead sources)
+https://vyla-api.pages.dev/api/player?type=movie&id=27205&nocheck=1
+```
+
+## Embed in an iframe
+
+```html
+<iframe
+  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
+  width="100%"
+  height="500"
+  allowfullscreen
+  frameborder="0"
+></iframe>
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Scrape">
+    All 8 providers are queried concurrently for the given TMDB ID.
+  </Step>
+  <Step title="Validate">
+    Each source receives a HEAD request. Dead sources, 403s, and timeouts are dropped before the player loads.
+  </Step>
+  <Step title="Play">
+    HLS streams are played via HLS.js. MP4/MKV sources use native video. Subtitles are injected as proxied track elements.
+  </Step>
+  <Step title="Fallback">
+    If a source stalls or errors within 8 seconds of loading, the player automatically moves to the next source.
+  </Step>
+</Steps>
+
+<Note>
+  All stream and subtitle URLs are routed through `/api/proxy` to handle CORS and required Referer/Origin headers automatically.
+</Note>
+
+<Warning>
+  Source validation adds ~5 seconds to initial load time. Use `?nocheck=1` to skip it if speed is more important than reliability.
+</Warning>

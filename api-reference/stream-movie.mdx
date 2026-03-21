@@ -1,0 +1,54 @@
+---
+title: Stream Movie
+description: Alias of /api/movie nested under the /stream path
+---
+
+## Endpoint
+
+```
+GET /api/stream/movie
+```
+
+Identical to [`/api/movie`](/api-reference/movie) — scrapes all providers for a movie and returns sources and subtitles.
+
+## Parameters
+
+| Name | Type   | Required | Description   |
+|------|--------|----------|---------------|
+| `id` | string | ✅       | TMDB movie ID |
+
+## Example Request
+
+```bash
+curl https://vyla-api.pages.dev/api/stream/movie?id=27205
+```
+
+## Example Response
+
+```json
+{
+  "success": true,
+  "results_found": 4,
+  "sources": [
+    {
+      "url": "https://stream.example.com/movie.m3u8",
+      "type": "hls",
+      "quality": "1080p",
+      "provider": "VixSrc",
+      "audioTracks": [{ "language": "eng", "label": "English" }],
+      "headers": { "Referer": "https://vixsrc.to" }
+    }
+  ],
+  "subtitles": [
+    {
+      "url": "https://sub.example.com/en.vtt",
+      "label": "English",
+      "format": "vtt"
+    }
+  ]
+}
+```
+
+<Note>
+  This is a path alias. For most use cases, prefer [`/api/movie`](/api-reference/movie).
+</Note>

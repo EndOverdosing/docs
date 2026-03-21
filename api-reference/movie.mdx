@@ -1,0 +1,78 @@
+---
+title: Movie
+description: Scrape streaming sources for a movie by TMDB ID
+---
+
+## Endpoint
+
+```
+GET /api/movie
+```
+
+## Parameters
+
+| Name | Type   | Required | Description   |
+|------|--------|----------|---------------|
+| `id` | string | ✅       | TMDB movie ID |
+
+## Example Request
+
+```bash
+curl https://vyla-api.pages.dev/api/movie?id=27205
+```
+
+## Example Response
+
+```json
+{
+  "success": true,
+  "results_found": 4,
+  "sources": [
+    {
+      "url": "https://stream.example.com/movie.m3u8",
+      "type": "hls",
+      "quality": "1080p",
+      "provider": "VixSrc",
+      "audioTracks": [
+        { "language": "eng", "label": "English" }
+      ],
+      "headers": {
+        "Referer": "https://vixsrc.to",
+        "Origin": "https://vixsrc.to"
+      }
+    },
+    {
+      "url": "https://cdn.example.com/movie.mp4",
+      "type": "mp4",
+      "quality": "720p",
+      "provider": "02MovieDownloader",
+      "audioTracks": [
+        { "language": "eng", "label": "English" }
+      ],
+      "headers": {
+        "User-Agent": "Mozilla/5.0..."
+      }
+    }
+  ],
+  "subtitles": [
+    {
+      "url": "https://sub.example.com/en.vtt",
+      "label": "English",
+      "format": "vtt"
+    }
+  ]
+}
+```
+
+## Error Response
+
+```json
+{
+  "success": false,
+  "error": "Missing id"
+}
+```
+
+<Note>
+  Sources are sorted by quality (highest first) and filtered to English audio only. Always check `success` before using `sources`.
+</Note>

@@ -1,0 +1,39 @@
+---
+title: Introduction
+description: Vyla API — stream and download movies & TV shows via TMDB ID
+banner: /banner.png
+---
+
+Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and returns them through a unified JSON interface. Pass any TMDB ID to retrieve direct stream URLs, subtitles, and a ready-to-use embedded player.
+
+## Base URL
+```
+https://vyla-api.pages.dev
+````
+
+## Providers
+Sources are scraped concurrently from multiple providers, deduplicated, filtered for errors, and sorted by quality before being returned.
+
+## Quick Start
+
+Fetch sources for Inception (TMDB ID: 27205):
+```bash
+curl https://vyla-api.pages.dev/api/movie?id=27205
+````
+
+Embed the player:
+
+```html
+<iframe src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
+  width="100%" height="500" allowfullscreen></iframe>
+```
+
+## How It Works
+
+Client requests are sent to the API with a TMDB ID. The API scrapes multiple providers in parallel, filters invalid sources, proxies HLS streams for playback compatibility, and returns structured data or a playable embed.
+
+## Notes
+
+* HLS (.m3u8) streams are for playback only, not direct download
+* MP4/MKV sources can be downloaded when available
+* If one source fails, fallback sources should be used

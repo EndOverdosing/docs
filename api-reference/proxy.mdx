@@ -1,0 +1,71 @@
+---
+title: Proxy
+description: Proxy any video URL through Cloudflare with CORS and header support
+---
+
+## Endpoint
+
+```
+GET /api/proxy
+HEAD /api/proxy
+```
+
+Proxies any URL through Cloudflare Workers. Handles CORS, injects required `Referer` and `Origin` headers, and rewrites m3u8 playlists so all segment URLs are also proxied automatically.
+
+## Parameters
+
+| Name      | Type   | Required | Description                                         |
+|-----------|--------|----------|-----------------------------------------------------|
+| `url`     | string | ✅       | URL-encoded target URL                              |
+| `headers` | string | ❌       | Base64-encoded JSON object of additional request headers |
+
+## Example Requests
+
+```bash
+# Proxy a plain video URL
+curl "https://vyla-api.pages.dev/api/proxy?url=https%3A%2F%2Fexample.com%2Fvideo.mp4"
+
+# Proxy with custom headers (base64 encoded JSON)
+curl "https://vyla-api.pages.dev/api/proxy?url=https%3A%2F%2Fexample.com%2Fstream.m3u8&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly9leGFtcGxlLmNvbSJ9"
+```
+
+## Encoding Headers
+
+The `headers` parameter must be a base64-encoded JSON object:
+
+```javascript
+const headers = { Referer: "https://example.com", Origin: "https://example.com" };
+const encoded = btoa(JSON.stringify(headers));
+// Pass as &headers=eyJSZWZlcmVyIjoia...
+```
+
+## M3U8 Rewriting
+
+When the proxied URL returns an m3u8 playlist, all segment and variant URLs inside it are automatically rewritten to also go through `/api/proxy`. This ensures the entire HLS stream plays without CORS issues.
+
+```
+Original segment:  https://cdn.example.com/seg001.ts
+Rewritten segment: https://vyla-api.pages.dev/api/proxy?url=https%3A%2F%2Fcdn.example.com%2Fseg001.ts
+```
+
+## Security
+
+Private IP ranges and localhost are blocked to prevent SSRF:
+
+- `127.0.0.1`, `::1`, `0.0.0.0`
+- `10.x.x.x`, `192.168.x.x`, `172.16-31.x.x`
+- `.internal`, `.local` domains
+
+## Error Responses
+
+```json
+{ "error": "Missing url parameter" }
+{ "error": "Invalid url" }
+{ "error": "Blocked host" }
+{ "error": "Fetch failed: <reason>" }
+{ "error": "Upstream error 403" }
+```
+
+<Note>
+  The proxy automatically sets a default `User-Agent`, `Origin`, and `Referer` based on the target URL. Custom headers passed via the `headers` parameter are merged on top.
+</Note>

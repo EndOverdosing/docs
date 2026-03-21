@@ -1,0 +1,72 @@
+---
+title: TV Show
+description: Scrape streaming sources for a TV episode by TMDB ID
+---
+
+## Endpoint
+
+```
+GET /api/tv
+```
+
+## Parameters
+
+| Name      | Type   | Required | Default | Description       |
+|-----------|--------|----------|---------|-------------------|
+| `id`      | string | ✅       | —       | TMDB series ID    |
+| `season`  | string | ❌       | `1`     | Season number     |
+| `episode` | string | ❌       | `1`     | Episode number    |
+
+## Example Requests
+
+```bash
+# Season 1, Episode 1 (defaults)
+curl https://vyla-api.pages.dev/api/tv?id=1396
+
+# Specific episode
+curl https://vyla-api.pages.dev/api/tv?id=1396&season=2&episode=3
+```
+
+## Example Response
+
+```json
+{
+  "success": true,
+  "results_found": 3,
+  "sources": [
+    {
+      "url": "https://stream.example.com/ep.m3u8",
+      "type": "hls",
+      "quality": "1080p",
+      "provider": "VidZee",
+      "audioTracks": [
+        { "language": "eng", "label": "English" }
+      ],
+      "headers": {
+        "Referer": "https://player.vidzee.wtf",
+        "Origin": "https://player.vidzee.wtf"
+      }
+    }
+  ],
+  "subtitles": [
+    {
+      "url": "https://sub.example.com/en.vtt",
+      "label": "English",
+      "format": "vtt"
+    }
+  ]
+}
+```
+
+## Error Response
+
+```json
+{
+  "success": false,
+  "error": "Missing id"
+}
+```
+
+<Note>
+  TMDB IDs for TV shows refer to the **series**, not individual episodes. Find them at [themoviedb.org](https://www.themoviedb.org).
+</Note>
