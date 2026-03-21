@@ -1,6 +1,6 @@
 ---
 title: Stream TV
-description: Alias of /api/tv nested under the /stream path
+description: Enriched TV episode sources with download URLs, ffmpeg commands, and deduplication
 ---
 
 ## Endpoint
@@ -9,7 +9,9 @@ description: Alias of /api/tv nested under the /stream path
 GET /api/stream/tv
 ```
 
-Identical to [`/api/tv`](/api-reference/tv) — scrapes all providers for a TV episode and returns sources and subtitles.
+Scrapes all providers for a TV episode and returns fully enriched sources. Unlike [`/api/tv`](/api-reference/tv), this endpoint applies deep deduplication, injects referer headers, generates ready-to-use `download_url` and `ffmpeg_command` fields for every source, and returns a proxied `vlc_url`.
+
+`/api/download/tv` is an alias of this endpoint — they return the same response.
 
 ## Parameters
 
@@ -30,29 +32,32 @@ curl "https://vyla-api.pages.dev/api/stream/tv?id=456&season=1&episode=1"
 ```json
 {
   "success": true,
-  "results_found": 9,
+  "tmdb_id": "456",
+  "season": "1",
+  "episode": "1",
+  "results_found": 7,
   "sources": [
     {
-      "url": "https://vixsrc.to/playlist/202976?token=...&expires=...&h=1",
-      "type": "hls",
-      "quality": "1080p",
-      "provider": "VixSrc",
-      "audioTracks": [{ "language": "eng", "label": "English" }],
-      "headers": {
-        "Referer": "https://vixsrc.to",
-        "Origin": "https://vixsrc.to"
-      }
+      "provider": "VidRock",
+      "quality": "360p",
+      "type": "mp4",
+      "url": "https://bcdnxw.hakunaymatata.com/bt/abc123.mp4?sign=...&t=...",
+      "is_hls": false,
+      "referer": "https://lok-lok.cc/",
+      "ffmpeg_command": "ffmpeg -headers \"Referer: https://lok-lok.cc/\\r\\nOrigin: https://lok-lok.cc\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://bcdnxw.hakunaymatata.com/...\" -c copy -bsf:a aac_adtstoasc s1e1_360p_1.mp4",
+      "download_url": "/api/download?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&filename=s1e1_360p_1.mp4&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly9sb2stbG9rLmNjLyIsIk9yaWdpbiI6Imh0dHBzOi8vbG9rLWxvay5jYyJ9",
+      "vlc_url": "/api/proxy?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly9sb2stbG9rLmNjLyIsIk9yaWdpbiI6Imh0dHBzOi8vbG9rLWxvay5jYyJ9"
     },
     {
-      "url": "https://bcdnxw.hakunaymatata.com/bt/abc123.mp4?sign=...&t=...",
-      "type": "mp4",
-      "quality": "360p",
-      "provider": "VidRock",
-      "audioTracks": [{ "language": "eng", "label": "English" }],
-      "headers": {
-        "Referer": "https://lok-lok.cc/",
-        "Origin": "https://lok-lok.cc/"
-      }
+      "provider": "VixSrc",
+      "quality": "1080p",
+      "type": "hls",
+      "url": "https://vixsrc.to/playlist/202976?token=...&expires=...&h=1",
+      "is_hls": true,
+      "referer": "https://vixsrc.to/",
+      "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\\r\\nOrigin: https://vixsrc.to\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://vixsrc.to/playlist/202976?token=...\" -c copy -bsf:a aac_adtstoasc s1e1_1080p_2.mp4",
+      "download_url": null,
+      "vlc_url": "/api/proxy?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F202976%3Ftoken%3D...&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly92aXhzcmMudG8vIiwiT3JpZ2luIjoiaHR0cHM6Ly92aXhzcmMudG8ifQ%3D%3D"
     }
   ],
   "subtitles": [
@@ -70,6 +75,33 @@ curl "https://vyla-api.pages.dev/api/stream/tv?id=456&season=1&episode=1"
 }
 ```
 
+## Enriched Source Object Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Which provider this source came from |
+| `quality` | string | e.g. `1080p`, `720p`, `unknown` |
+| `type` | string | `hls`, `mp4`, or `mkv` |
+| `url` | string | The real, unwrapped stream URL |
+| `is_hls` | boolean | `true` if this is an HLS/m3u8 stream |
+| `referer` | string \| null | The `Referer` header required by the CDN |
+| `ffmpeg_command` | string | Ready-to-run ffmpeg command with all headers embedded |
+| `download_url` | string \| null | Relative URL for direct browser download. `null` for HLS sources |
+| `vlc_url` | string | Proxied URL — open in VLC or any player that supports URLs |
+
+## Error Response
+
+```json
+{
+  "success": false,
+  "error": "Missing id"
+}
+```
+
 <Note>
-  This is a path alias. For most use cases, prefer [`/api/tv`](/api-reference/tv).
+  Duplicate sources (same underlying file wrapped by different provider proxy chains) are automatically removed.
 </Note>
+
+<Warning>
+  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to mp4 using the provided `ffmpeg_command`.
+</Warning>

@@ -81,3 +81,7 @@ Private IP ranges and localhost are blocked to prevent SSRF:
 <Note>
   The proxy is used internally by `/api/player` — all stream and subtitle URLs served to the player are routed through `/api/proxy` to handle CORS and required headers automatically.
 </Note>
+
+<Note>
+  The `vlc_url` field returned by `/api/stream/movie` and `/api/stream/tv` is a pre-built proxy URL — you can pass it directly to VLC or any player that accepts URLs without additional encoding.
+</Note>

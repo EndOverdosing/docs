@@ -9,6 +9,12 @@ description: Scrape streaming sources for a movie by TMDB ID
 GET /api/movie
 ```
 
+Scrapes all providers for a movie and returns the raw source list. Sources are sorted by quality and filtered to English audio only. No deduplication beyond exact URL matches is applied at this layer.
+
+<Note>
+  If you need enriched output with pre-built `download_url`, `ffmpeg_command`, and deeper deduplication, use [`/api/stream/movie`](/api-reference/stream-movie) instead.
+</Note>
+
 ## Parameters
 
 | Name | Type   | Required | Description   |
@@ -39,7 +45,8 @@ curl https://vyla-api.pages.dev/api/movie?id=550
       "headers": {
         "Referer": "https://vixsrc.to",
         "Origin": "https://vixsrc.to"
-      }
+      },
+      "vlc_url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1"
     },
     {
       "url": "https://bcdnxw.hakunaymatata.com/resource/abc123.mp4?sign=...&t=...",
@@ -52,7 +59,8 @@ curl https://vyla-api.pages.dev/api/movie?id=550
       "headers": {
         "Referer": "https://lok-lok.cc/",
         "Origin": "https://lok-lok.cc/"
-      }
+      },
+      "vlc_url": "https://bcdnxw.hakunaymatata.com/resource/abc123.mp4?sign=...&t=..."
     }
   ],
   "subtitles": [
@@ -65,6 +73,18 @@ curl https://vyla-api.pages.dev/api/movie?id=550
 }
 ```
 
+## Source Object Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | string | Direct stream URL |
+| `type` | string | `hls`, `mp4`, or `mkv` |
+| `quality` | string | e.g. `1080p`, `720p`, `HD`, `unknown` |
+| `provider` | string | Which provider this source came from |
+| `audioTracks` | array | Language/label of audio tracks |
+| `headers` | object | Required headers to forward when fetching this URL |
+| `vlc_url` | string | Same as `url` on this endpoint — not proxied |
+
 ## Error Response
 
 ```json
@@ -74,14 +94,10 @@ curl https://vyla-api.pages.dev/api/movie?id=550
 }
 ```
 
-<Note>
-  Sources are sorted by quality (highest first) and filtered to English audio only. Always check `success` before using `sources`.
-</Note>
+<Warning>
+  The `headers` field on each source must be forwarded when fetching the stream directly. Pass them as base64 JSON to `/api/proxy` via the `headers` param, or use `/api/stream/movie` which handles header encoding in `vlc_url` automatically.
+</Warning>
 
 <Note>
   TMDB movie IDs can be found at [themoviedb.org](https://www.themoviedb.org). The ID is in the URL — e.g. `themoviedb.org/movie/550` → ID is `550`.
 </Note>
-
-<Warning>
-  The `headers` field on each source must be forwarded when fetching the stream directly. Pass them as base64 JSON to `/api/proxy` or `/api/download` via the `headers` param, or use `/api/download/movie` which handles this automatically.
-</Warning>

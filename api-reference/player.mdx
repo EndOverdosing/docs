@@ -1,144 +1,91 @@
 ---
-title: Introduction
-description: Vyla API — stream and download movies & TV shows via TMDB ID
+title: Player
+description: Embeddable fullscreen HTML video player
 ---
 
-Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and serves them through a unified JSON interface. Pass any TMDB ID and get back direct stream URLs, subtitles, download links, ffmpeg commands, and an embeddable player.
-
-## Base URL
+## Endpoint
 
 ```
-https://vyla-api.pages.dev
+GET /api/player
 ```
 
-## Quick Start
+Returns a self-contained HTML page with a fullscreen video player. All sources are fetched, proxied, and played automatically with HLS.js. If one source fails or stalls, the player falls back to the next source. Subtitles are injected automatically.
 
-Fetch sources for Inception (TMDB ID: 27205):
+## Parameters
+
+| Name      | Type   | Required | Default  | Description                          |
+|-----------|--------|----------|----------|--------------------------------------|
+| `type`    | string | ❌       | `movie`  | `movie` or `tv`                      |
+| `id`      | string | ✅       | —        | TMDB movie or series ID              |
+| `season`  | string | ❌       | `1`      | Season number (TV only)              |
+| `episode` | string | ❌       | `1`      | Episode number (TV only)             |
+| `nocheck` | string | ❌       | —        | Set to `1` to skip live source checks and use all sources directly |
+
+## Example Requests
 
 ```bash
-curl https://vyla-api.pages.dev/api/movie?id=27205
+# Movie
+https://vyla-api.pages.dev/api/player?type=movie&id=550
+
+# TV episode
+https://vyla-api.pages.dev/api/player?type=tv&id=456&season=2&episode=3
+
+# Skip live checks (faster startup, some dead sources may be tried)
+https://vyla-api.pages.dev/api/player?type=movie&id=550&nocheck=1
 ```
 
-Get download-ready links with ffmpeg commands:
-
-```bash
-curl https://vyla-api.pages.dev/api/download/movie?id=27205
-```
-
-Embed the player in an iframe:
+## Embed as an iframe
 
 ```html
+<!-- Movie -->
 <iframe
-  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
+  src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
   width="100%"
   height="500"
   allowfullscreen
+  frameborder="0"
+></iframe>
+
+<!-- TV Episode -->
+<iframe
+  src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
+  width="100%"
+  height="500"
+  allowfullscreen
+  frameborder="0"
 ></iframe>
 ```
 
-## Endpoints
+## How It Works
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/movie` | Streaming sources for a movie |
-| `GET /api/tv` | Streaming sources for a TV episode |
-| `GET /api/stream/movie` | Alias of `/api/movie` |
-| `GET /api/stream/tv` | Alias of `/api/tv` |
-| `GET /api/download/movie` | Download-ready sources + ffmpeg commands for a movie |
-| `GET /api/download/tv` | Download-ready sources + ffmpeg commands for a TV episode |
-| `GET /api/download` | Proxy-download a single video URL directly |
-| `GET /api/proxy` | Proxy any URL through Cloudflare with CORS + header injection |
-| `GET /api/player` | Embeddable fullscreen HTML player |
+1. The player scrapes all providers and performs a live HEAD check on each source (unless `nocheck=1`)
+2. Sources that respond successfully are loaded first; dead sources are skipped
+3. If all sources fail the check, the full unfiltered list is used as a fallback
+4. Sources are loaded in order using HLS.js for HLS streams and the native `<video>` element for MP4
+5. A stall timer (8 seconds) auto-advances to the next source if playback doesn't begin
+6. All stream and subtitle URLs are routed through `/api/proxy` to handle CORS and required headers
+7. Subtitles are attached as `<track>` elements with the first track set as default
 
-## Providers
+## Player Behavior
 
-Sources are scraped concurrently from all providers, deduplicated, filtered to English audio, and sorted by quality before being returned.
+| Event | Action |
+|-------|--------|
+| `playing` | Clears the stall timer — source is working |
+| `error` | Immediately tries the next source |
+| `stalled` | Starts the 8-second stall timer if playback hasn't begun |
+| `waiting` | Starts the 8-second stall timer if playback hasn't begun |
+| HLS fatal error | Destroys the HLS instance and tries the next source |
 
-| Provider | Type | Notes |
-|----------|------|-------|
-| 02MovieDownloader | mp4 / mkv | Requires token verification |
-| VixSrc | hls | Token + expiry, playlist URL format |
-| VidSrc | hls | Multi-CDN mirror deduplication |
-| Uembed | hls | Multi-API with m3u8 variant resolution |
-| VidRock | hls / mp4 | AES-CBC encrypted item IDs |
-| RgShows | mp4 | Direct CDN with tripplestream headers |
-| VidZee | hls | AES-CBC encrypted stream URLs |
-| 02Embed | hls | Unwrapped from madvid3/02pcembed proxy chain |
+## Error Responses
 
-## Quality Priority
-
-Sources are ranked and sorted in this order:
-
-```
-4K / 2160p > 1440p > 1080p > 720p > 480p > 360p > 240p > HD > Auto > Unknown
+```html
+<h2>Missing ?id=</h2>
 ```
 
-## CORS
-
-All endpoints return:
-
-```
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, HEAD, OPTIONS
-Access-Control-Allow-Headers: *
+```html
+<h2>No sources found.</h2>
 ```
 
-## Source Object
-
-Every source in a `/api/movie` or `/api/tv` response follows this shape:
-
-```json
-{
-  "url": "https://...",
-  "type": "hls | mp4 | mkv",
-  "quality": "1080p",
-  "provider": "VixSrc",
-  "audioTracks": [
-    { "language": "eng", "label": "English" }
-  ],
-  "headers": {
-    "Referer": "https://...",
-    "Origin": "https://..."
-  }
-}
-```
-
-The `headers` field must be forwarded when proxying or downloading — omitting them will result in 403 errors from the CDN.
-
-## Download Source Object
-
-Every source in a `/api/download/movie` or `/api/download/tv` response follows this shape:
-
-```json
-{
-  "provider": "VixSrc",
-  "quality": "1080p",
-  "type": "hls",
-  "url": "https://vixsrc.to/playlist/...",
-  "is_hls": true,
-  "referer": "https://vixsrc.to/",
-  "ffmpeg_command": "ffmpeg -headers \"...\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc output.mp4",
-  "download_url": null
-}
-```
-
-- `download_url` is populated for direct MP4/MKV files — use it as a browser download link
-- `download_url` is `null` for HLS streams — use `ffmpeg_command` instead to mux to mp4
-
-## Subtitle Object
-
-```json
-{
-  "url": "https://...",
-  "label": "English",
-  "format": "vtt | srt"
-}
-```
-
-## Notes
-
-- HLS (`.m3u8`) streams and vixsrc `/playlist/` URLs are for playback or ffmpeg only — they cannot be saved as a single file via a browser link
-- MP4/MKV sources can be downloaded directly via `/api/download` using the `download_url` field
-- All source `headers` must be forwarded to the CDN — pass them as base64 JSON to `/api/proxy` or `/api/download` via the `headers` param
-- Duplicate sources (same underlying URL wrapped by different proxy chains) are automatically removed
-- CDN mirror duplicates (e.g. same stream path across multiple `tmstr*.` hostnames) are collapsed to one entry
+<Note>
+  The player uses HLS.js v1.5.13. On Safari, native HLS is used instead when HLS.js is not supported.
+</Note>

@@ -1,39 +1,149 @@
 ---
 title: Introduction
 description: Vyla API — stream and download movies & TV shows via TMDB ID
-banner: /banner.png
 ---
 
-Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and returns them through a unified JSON interface. Pass any TMDB ID to retrieve direct stream URLs, subtitles, and a ready-to-use embedded player.
+Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and serves them through a unified JSON interface. Pass any TMDB ID and get back direct stream URLs, subtitles, download links, ffmpeg commands, and an embeddable player.
 
 ## Base URL
+
 ```
 https://vyla-api.pages.dev
-````
-
-## Providers
-Sources are scraped concurrently from multiple providers, deduplicated, filtered for errors, and sorted by quality before being returned.
+```
 
 ## Quick Start
 
 Fetch sources for Inception (TMDB ID: 27205):
+
 ```bash
 curl https://vyla-api.pages.dev/api/movie?id=27205
-````
-
-Embed the player:
-
-```html
-<iframe src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
-  width="100%" height="500" allowfullscreen></iframe>
 ```
 
-## How It Works
+Get download-ready links with ffmpeg commands:
 
-Client requests are sent to the API with a TMDB ID. The API scrapes multiple providers in parallel, filters invalid sources, proxies HLS streams for playback compatibility, and returns structured data or a playable embed.
+```bash
+curl https://vyla-api.pages.dev/api/download/movie?id=27205
+```
+
+Embed the player in an iframe:
+
+```html
+<iframe
+  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
+  width="100%"
+  height="500"
+  allowfullscreen
+></iframe>
+```
+
+## Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/movie` | Streaming sources for a movie (raw scraper output) |
+| `GET /api/tv` | Streaming sources for a TV episode (raw scraper output) |
+| `GET /api/stream/movie` | Enriched movie sources with download URLs, ffmpeg commands, and deduplication |
+| `GET /api/stream/tv` | Enriched TV sources with download URLs, ffmpeg commands, and deduplication |
+| `GET /api/download/movie` | Alias of `/api/stream/movie` |
+| `GET /api/download/tv` | Alias of `/api/stream/tv` |
+| `GET /api/download` | Proxy-download a single video URL directly |
+| `GET /api/proxy` | Proxy any URL through Cloudflare with CORS + header injection |
+| `GET /api/player` | Embeddable fullscreen HTML player |
+
+## Providers
+
+Sources are scraped concurrently from all providers, filtered to English audio, and sorted by quality before being returned.
+
+| Provider | Type | Notes |
+|----------|------|-------|
+| 02MovieDownloader | mp4 / mkv | Token-verified direct downloads |
+| VixSrc | hls | Signed token + expiry, playlist URL format |
+| VidSrc | hls | Multi-CDN mirror with domain substitution |
+| Uembed | hls | Multi-API with m3u8 variant resolution |
+| VidRock | hls / mp4 | AES-CBC encrypted item IDs |
+| RgShows | mp4 / hls | Direct CDN with tripplestream headers |
+| VidZee | hls | AES-CBC encrypted stream URLs, 14 servers |
+| 02Embed | hls | Unwrapped from madvid3/02pcembed proxy chain |
+
+## Quality Priority
+
+Sources are sorted in this order before being returned:
+
+```
+4K / 2160p > 1440p > 1080p > 720p > 480p > 360p > 240p > HD > Auto > Unknown
+```
+
+## CORS
+
+All endpoints return:
+
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, HEAD, OPTIONS
+Access-Control-Allow-Headers: *
+```
+
+## Source Object — `/api/movie` and `/api/tv`
+
+These endpoints return the raw scraper output. Each source looks like:
+
+```json
+{
+  "url": "https://...",
+  "type": "hls | mp4 | mkv",
+  "quality": "1080p",
+  "provider": "VixSrc",
+  "audioTracks": [
+    { "language": "eng", "label": "English" }
+  ],
+  "headers": {
+    "Referer": "https://...",
+    "Origin": "https://..."
+  },
+  "vlc_url": "https://..."
+}
+```
+
+The `vlc_url` field is identical to `url` on these endpoints — it is not proxied.
+
+The `headers` field must be forwarded when fetching the stream directly — omitting them will result in 403 errors from the CDN.
+
+## Enriched Source Object — `/api/stream/movie`, `/api/stream/tv`, `/api/download/movie`, `/api/download/tv`
+
+These endpoints return a richer, processed source shape with pre-built download links:
+
+```json
+{
+  "provider": "VixSrc",
+  "quality": "1080p",
+  "type": "hls",
+  "url": "https://vixsrc.to/playlist/...",
+  "is_hls": true,
+  "referer": "https://vixsrc.to/",
+  "ffmpeg_command": "ffmpeg -headers \"...\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc output.mp4",
+  "download_url": null,
+  "vlc_url": "/api/proxy?url=...&headers=..."
+}
+```
+
+- `download_url` is a ready-to-use link for direct MP4/MKV files
+- `download_url` is `null` for HLS streams — use `ffmpeg_command` instead
+- `vlc_url` is a proxied URL suitable for use in VLC or any player that can open a URL
+- Duplicate sources (same underlying URL wrapped by different proxy chains) are automatically removed
+
+## Subtitle Object
+
+```json
+{
+  "url": "https://...",
+  "label": "English",
+  "format": "vtt | srt"
+}
+```
 
 ## Notes
 
-* HLS (.m3u8) streams are for playback only, not direct download
-* MP4/MKV sources can be downloaded when available
-* If one source fails, fallback sources should be used
+- HLS (`.m3u8`) streams and vixsrc `/playlist/` URLs are for playback or ffmpeg only
+- MP4/MKV sources can be downloaded directly via `/api/download` using the `download_url` field
+- All source `headers` must be forwarded to the CDN — pass them as base64 JSON to `/api/proxy` or `/api/download` via the `headers` param
+- CDN mirror duplicates are collapsed to one entry on the enriched endpoints

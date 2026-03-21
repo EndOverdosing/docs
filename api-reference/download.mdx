@@ -1,12 +1,12 @@
 ---
 title: Download
-description: Download a video file by URL, or get download-ready links and ffmpeg commands by TMDB ID
+description: Download a video file by URL, or get enriched download-ready sources by TMDB ID
 ---
 
 Vyla API has two separate download systems:
 
 - `/api/download` — proxy-download a single raw video URL directly
-- `/api/download/movie` and `/api/download/tv` — scrape all sources for a title and return download URLs + ffmpeg commands
+- `/api/stream/movie` and `/api/stream/tv` (also aliased as `/api/download/movie` and `/api/download/tv`) — scrape all sources for a title and return enriched sources with `download_url` and `ffmpeg_command`
 
 ---
 
@@ -33,7 +33,7 @@ Fetches a video file and streams it to the browser as a download. Automatically 
 ```bash
 curl -L "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&filename=movie.mp4" \
   -o movie.mp4
-```
+````
 
 Or as a browser download link:
 
@@ -53,7 +53,7 @@ const encoded = encodeURIComponent(btoa(JSON.stringify(headers)));
 const url = `https://vyla-api.pages.dev/api/download?url=${encodeURIComponent(sourceUrl)}&filename=movie.mp4&headers=${encoded}`;
 ```
 
-The `download_url` field from `/api/download/movie` and `/api/download/tv` already has this encoded and ready to use.
+The `download_url` field from `/api/stream/movie` and `/api/stream/tv` already has this encoded and ready to use.
 
 ### HLS / Playlist URLs
 
@@ -102,59 +102,21 @@ curl "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvi
 
 ```
 GET /api/download/movie
+GET /api/stream/movie
 ```
 
-Scrapes all providers for a movie and returns every source enriched with a ready-to-use `download_url` or `ffmpeg_command`.
+These are aliases of each other. Both scrape all providers for a movie and return every source enriched with a ready-to-use `download_url` or `ffmpeg_command`. See the [Stream Movie](/api-reference/stream-movie) reference for the full response shape and field descriptions.
 
 ### Parameters
 
 | Name | Type   | Required | Description   |
-|------|--------|----------|---------------|
-| `id` | string | ✅       | TMDB movie ID |
+| ---- | ------ | -------- | ------------- |
+| `id` | string | ✅        | TMDB movie ID |
 
 ### Example Request
 
 ```bash
 curl https://vyla-api.pages.dev/api/download/movie?id=550
-```
-
-### Example Response
-
-```json
-{
-  "success": true,
-  "tmdb_id": "550",
-  "results_found": 9,
-  "sources": [
-    {
-      "provider": "RgShows",
-      "quality": "1080p",
-      "type": "mp4",
-      "url": "https://hlmv-files-1.tripplestream.online/gs/abc123?q=.mp4",
-      "is_hls": false,
-      "referer": "https://www.rgshows.ru/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://www.rgshows.ru/\\r\\n...\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc 550_1080p_1.mp4",
-      "download_url": "/api/download?url=https%3A%2F%2Fhlmv-files-1.tripplestream.online%2Fgs%2Fabc123%3Fq%3D.mp4&filename=550_1080p_1.mp4&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly93d3cucmdzaG93cy5ydS8iLCJPcmlnaW4iOiJodHRwczovL3d3dy5yZ3Nob3dzLnJ1In0%3D"
-    },
-    {
-      "provider": "VixSrc",
-      "quality": "1080p",
-      "type": "hls",
-      "url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1",
-      "is_hls": true,
-      "referer": "https://vixsrc.to/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\\r\\nOrigin: https://vixsrc.to\\r\\n...\" -i \"https://vixsrc.to/playlist/170060?token=...\" -c copy -bsf:a aac_adtstoasc 550_1080p_2.mp4",
-      "download_url": null
-    }
-  ],
-  "subtitles": [
-    {
-      "url": "https://vixsrc.to/playlist/170060?type=subtitle&rendition=eng&token=...&expires=...&edge=...",
-      "label": "English",
-      "format": "vtt"
-    }
-  ]
-}
 ```
 
 ---
@@ -163,47 +125,23 @@ curl https://vyla-api.pages.dev/api/download/movie?id=550
 
 ```
 GET /api/download/tv
+GET /api/stream/tv
 ```
 
-Same as `/api/download/movie` but for TV episodes.
+These are aliases of each other. Same as the movie endpoint but for TV episodes. See the [Stream TV](/api-reference/stream-tv) reference for the full response shape and field descriptions.
 
 ### Parameters
 
 | Name      | Type   | Required | Default | Description    |
-|-----------|--------|----------|---------|----------------|
-| `id`      | string | ✅       | —       | TMDB series ID |
-| `season`  | string | ❌       | `1`     | Season number  |
-| `episode` | string | ❌       | `1`     | Episode number |
+| --------- | ------ | -------- | ------- | -------------- |
+| `id`      | string | ✅        | —       | TMDB series ID |
+| `season`  | string | ❌        | `1`     | Season number  |
+| `episode` | string | ❌        | `1`     | Episode number |
 
 ### Example Request
 
 ```bash
 curl "https://vyla-api.pages.dev/api/download/tv?id=456&season=1&episode=1"
-```
-
-### Example Response
-
-```json
-{
-  "success": true,
-  "tmdb_id": "456",
-  "season": "1",
-  "episode": "1",
-  "results_found": 7,
-  "sources": [
-    {
-      "provider": "VidRock",
-      "quality": "360p",
-      "type": "mp4",
-      "url": "https://bcdnxw.hakunaymatata.com/bt/abc123.mp4?sign=...&t=...",
-      "is_hls": false,
-      "referer": "https://lok-lok.cc/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://lok-lok.cc/\\r\\nOrigin: https://lok-lok.cc\\r\\n...\" -i \"https://bcdnxw.hakunaymatata.com/...\" -c copy -bsf:a aac_adtstoasc s1e1_360p_1.mp4",
-      "download_url": "/api/download?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&filename=s1e1_360p_1.mp4&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly9sb2stbG9rLmNjLyIsIk9yaWdpbiI6Imh0dHBzOi8vbG9rLWxvay5jYyJ9"
-    }
-  ],
-  "subtitles": []
-}
 ```
 
 ---

@@ -3,7 +3,7 @@ title: Subtitles
 description: How subtitles work in Vyla API — formats, deduplication, and usage
 ---
 
-Every `/api/movie`, `/api/tv`, `/api/download/movie`, and `/api/download/tv` response includes a `subtitles` array alongside `sources`.
+Every `/api/movie`, `/api/tv`, `/api/stream/movie`, and `/api/stream/tv` response includes a `subtitles` array alongside `sources`.
 
 ## Subtitle Object
 
@@ -16,7 +16,7 @@ Every `/api/movie`, `/api/tv`, `/api/download/movie`, and `/api/download/tv` res
 ```
 
 | Field    | Type   | Description                        |
-|----------|--------|------------------------------------|
+|----------|--------|-------------------------------------|
 | `url`    | string | Direct URL to the subtitle file    |
 | `label`  | string | Display name (e.g. `English [CC]`, `French`, `Bengali`) |
 | `format` | string | `vtt` or `srt`                     |
@@ -31,10 +31,15 @@ Subtitles are collected from multiple providers and merged:
 | VidRock | CDN-hosted `.vtt` files at `vdrk.b-cdn.net` |
 | 02Embed | Proxied VidRock/VixSrc subtitles via madvid3.xyz |
 | 02MovieDownloader | CloudFront-signed `.srt` files from hakunaymatata CDN |
+| VidZee | `.vtt` tracks returned alongside each server response |
+
+## Filtering
+
+Only English subtitles are returned. A subtitle is kept if its `label` contains `"english"` or `"en"`, its `language` code matches a known English code (`eng`, `en`, `en-us`, `en-gb`), or its label is `"unknown"`.
 
 ## Deduplication
 
-The same subtitle file is often returned by multiple providers through different proxy chains. Vyla API automatically deduplicates subtitles by their underlying URL so you don't get the same track listed multiple times.
+The same subtitle file is often returned by multiple providers through different proxy chains. Vyla API deduplicates by the underlying URL so you don't get the same track listed multiple times.
 
 For example, all of these point to the same English subtitle and are collapsed to one entry:
 
@@ -43,7 +48,7 @@ https://vdrk.b-cdn.net/cache/movie/550/English.vtt
 https://madvid3.xyz/api/hls-proxy?url=...02pcembed.site...vdrk.b-cdn.net/cache/movie/550/English.vtt...
 ```
 
-VixSrc subtitle tokens (`token`, `expires`, `edge`) are also stripped before deduplication so the same rendition from different scrape calls doesn't produce duplicates.
+VixSrc subtitle tokens (`token`, `expires`, `edge`) are stripped before deduplication so the same rendition from different scrape calls doesn't produce duplicates.
 
 ## Using Subtitles in a Browser Player
 
