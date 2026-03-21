@@ -1,0 +1,92 @@
+---
+title: Scrape
+description: Fetch sources from a single provider by TMDB ID
+---
+
+## Endpoint
+
+```
+GET /api/scrape
+```
+
+Runs a single provider's scraper and returns raw sources and subtitles. This is the internal endpoint used by `/api/stream/movie`, `/api/stream/tv`, `/api/download/movie`, and `/api/download/tv` — those endpoints call `/api/scrape` once per provider in parallel so each gets its own isolated CPU budget.
+
+You can call it directly if you only want results from a specific provider, or want to fan out requests yourself.
+
+## Parameters
+
+| Name       | Type   | Required | Default  | Description |
+|------------|--------|----------|----------|-------------|
+| `id`       | string | ✅       | —        | TMDB movie or series ID |
+| `provider` | string | ✅       | —        | Provider key (see table below) |
+| `type`     | string | ❌       | `movie`  | `movie` or `tv` |
+| `season`   | string | ❌       | `1`      | Season number (TV only) |
+| `episode`  | string | ❌       | `1`      | Episode number (TV only) |
+
+## Valid Providers
+
+| Key | Provider |
+|-----|----------|
+| `moviedownloader` | 02MovieDownloader |
+| `vixsrc` | VixSrc |
+| `vidsrc` | VidSrc |
+| `uembed` | Uembed |
+| `vidrock` | VidRock |
+| `rgshows` | RgShows |
+| `vidzee` | VidZee |
+| `embed02` | 02Embed |
+
+## Example Requests
+
+```bash
+# Single provider — movie
+curl "https://vyla-api.pages.dev/api/scrape?type=movie&id=550&provider=vixsrc"
+
+# Single provider — TV episode
+curl "https://vyla-api.pages.dev/api/scrape?type=tv&id=456&season=1&episode=1&provider=vidrock"
+```
+
+## Example Response
+
+```json
+{
+  "success": true,
+  "sources": [
+    {
+      "url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1",
+      "type": "hls",
+      "quality": "1080p",
+      "provider": "VixSrc",
+      "audioTracks": [
+        { "language": "eng", "label": "English" }
+      ],
+      "headers": {
+        "Referer": "https://vixsrc.to/",
+        "Origin": "https://vixsrc.to"
+      }
+    }
+  ],
+  "subtitles": [
+    {
+      "url": "https://vixsrc.to/playlist/170060?type=subtitle&rendition=eng&token=...&expires=...&edge=...",
+      "label": "English",
+      "format": "vtt"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+```json
+{ "success": false, "error": "Missing id" }
+{ "success": false, "error": "Invalid or missing provider" }
+```
+
+<Note>
+  Sources returned by `/api/scrape` are raw — no deduplication, no `download_url`, no `ffmpeg_command`, no proxied `vlc_url`. Use `/api/stream/movie` or `/api/stream/tv` to get fully enriched results.
+</Note>
+
+<Note>
+  You can fan out calls yourself by firing all 8 provider requests in parallel with `Promise.all` and merging the results — this is exactly what the stream/download endpoints do internally.
+</Note>

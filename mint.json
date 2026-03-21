@@ -44,14 +44,21 @@
                 "api-reference/tv",
                 "api-reference/player",
                 "api-reference/proxy",
-                "api-reference/download"
+                "api-reference/download",
+                "api-reference/scrape"
             ]
         },
         {
-            "group": "Stream Aliases",
+            "group": "Stream & Download",
             "pages": [
                 "api-reference/stream-movie",
                 "api-reference/stream-tv"
+            ]
+        },
+        {
+            "group": "Playground",
+            "pages": [
+                "api-reference/playground"
             ]
         }
     ],

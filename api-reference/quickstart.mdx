@@ -57,7 +57,11 @@ Fetch sources as JSON, then feed them into HLS.js or a native `<video>` element.
 ### 1. Get sources
 
 ```bash
+# Basic — fewer sources, single scrape pass
 curl https://vyla-api.pages.dev/api/movie?id=550
+
+# Enriched — more sources, fans out across all providers in parallel
+curl https://vyla-api.pages.dev/api/stream/movie?id=550
 ```
 
 ### 2. Play an HLS source with HLS.js
@@ -67,7 +71,7 @@ curl https://vyla-api.pages.dev/api/movie?id=550
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script>
 async function loadMovie(tmdbId) {
-  const res = await fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`);
+  const res = await fetch(`https://vyla-api.pages.dev/api/stream/movie?id=${tmdbId}`);
   const data = await res.json();
 
   if (!data.success || !data.sources.length) return;
@@ -78,11 +82,7 @@ async function loadMovie(tmdbId) {
 
   if (source.type === "hls" && Hls.isSupported()) {
     const hls = new Hls();
-    const headers = source.headers ? btoa(JSON.stringify(source.headers)) : null;
-    const proxiedUrl = proxyBase + encodeURIComponent(source.url)
-      + (headers ? "&headers=" + encodeURIComponent(headers) : "");
-
-    hls.loadSource(proxiedUrl);
+    hls.loadSource(proxyBase + encodeURIComponent(source.url));
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
   } else {
@@ -94,6 +94,10 @@ async function loadMovie(tmdbId) {
 loadMovie(550);
 </script>
 ```
+
+<Note>
+  `/api/stream/movie` returns `vlc_url` on every source — a pre-built proxy URL with headers already encoded. You can pass it directly to HLS.js without any additional encoding.
+</Note>
 
 ### 3. Add subtitles
 

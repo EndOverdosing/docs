@@ -33,12 +33,24 @@ The proxy endpoint uses a slightly different shape:
 
 ---
 
+## `/api/scrape`
+
+| Status | Error | Cause |
+|--------|-------|-------|
+| `400` | `Missing id` | The `id` query parameter was not provided |
+| `400` | `Invalid or missing provider` | The `provider` parameter was omitted or not a valid provider key |
+| `200` | `success: false, sources: []` | The specified provider returned no results for the given ID |
+
+Valid provider values: `moviedownloader`, `vixsrc`, `vidsrc`, `uembed`, `vidrock`, `rgshows`, `vidzee`, `embed02`
+
+---
+
 ## `/api/stream/movie`, `/api/stream/tv`, `/api/download/movie`, `/api/download/tv`
 
 | Status | Error | Cause |
 |--------|-------|-------|
 | `400` | `Missing id` | The `id` query parameter was not provided |
-| `200` | `success: false, results_found: 0` | Scraping succeeded but no sources were found for the given ID |
+| `200` | `success: false, results_found: 0` | All provider sub-requests completed but none returned sources for the given ID |
 
 ---
 

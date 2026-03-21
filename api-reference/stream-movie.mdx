@@ -9,7 +9,7 @@ description: Enriched movie sources with download URLs, ffmpeg commands, and ded
 GET /api/stream/movie
 ```
 
-Scrapes all providers for a movie and returns fully enriched sources. Unlike [`/api/movie`](/api-reference/movie), this endpoint applies deep deduplication (collapsing sources wrapped by different proxy chains to their real underlying URL), injects referer headers, generates ready-to-use `download_url` and `ffmpeg_command` fields for every source, and returns a proxied `vlc_url`.
+Scrapes all providers for a movie and returns fully enriched sources. Unlike [`/api/movie`](/api-reference/movie), this endpoint fans out to all providers in parallel — each in an isolated request — so every provider gets its own CPU budget. This produces significantly more sources than a single scrape pass. Sources are deeply deduplicated (collapsing provider proxy chains to their real underlying URL), with pre-built `download_url`, `ffmpeg_command`, and proxied `vlc_url` fields on every source.
 
 `/api/download/movie` is an alias of this endpoint — they return the same response.
 
@@ -31,7 +31,7 @@ curl https://vyla-api.pages.dev/api/stream/movie?id=550
 {
   "success": true,
   "tmdb_id": "550",
-  "results_found": 9,
+  "results_found": 26,
   "sources": [
     {
       "provider": "RgShows",

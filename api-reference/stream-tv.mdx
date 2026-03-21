@@ -9,7 +9,7 @@ description: Enriched TV episode sources with download URLs, ffmpeg commands, an
 GET /api/stream/tv
 ```
 
-Scrapes all providers for a TV episode and returns fully enriched sources. Unlike [`/api/tv`](/api-reference/tv), this endpoint applies deep deduplication, injects referer headers, generates ready-to-use `download_url` and `ffmpeg_command` fields for every source, and returns a proxied `vlc_url`.
+Scrapes all providers for a TV episode and returns fully enriched sources. Unlike [`/api/tv`](/api-reference/tv), this endpoint fans out to all providers in parallel — each in an isolated request — so every provider gets its own CPU budget. Sources are deeply deduplicated, with pre-built `download_url`, `ffmpeg_command`, and proxied `vlc_url` fields on every source.
 
 `/api/download/tv` is an alias of this endpoint — they return the same response.
 
@@ -35,7 +35,7 @@ curl "https://vyla-api.pages.dev/api/stream/tv?id=456&season=1&episode=1"
   "tmdb_id": "456",
   "season": "1",
   "episode": "1",
-  "results_found": 7,
+  "results_found": 22,
   "sources": [
     {
       "provider": "VidRock",

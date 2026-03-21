@@ -6,7 +6,7 @@ description: Download a video file by URL, or get enriched download-ready source
 Vyla API has two separate download systems:
 
 - `/api/download` — proxy-download a single raw video URL directly
-- `/api/stream/movie` and `/api/stream/tv` (also aliased as `/api/download/movie` and `/api/download/tv`) — scrape all sources for a title and return enriched sources with `download_url` and `ffmpeg_command`
+- `/api/stream/movie` and `/api/stream/tv` (also aliased as `/api/download/movie` and `/api/download/tv`) — fan out across all providers in parallel and return enriched sources with `download_url` and `ffmpeg_command`
 
 ---
 
@@ -105,7 +105,7 @@ GET /api/download/movie
 GET /api/stream/movie
 ```
 
-These are aliases of each other. Both scrape all providers for a movie and return every source enriched with a ready-to-use `download_url` or `ffmpeg_command`. See the [Stream Movie](/api-reference/stream-movie) reference for the full response shape and field descriptions.
+These are aliases of each other. Both fan out to all providers in parallel — each provider runs in an isolated request with its own CPU budget — and return every source enriched with a ready-to-use `download_url` or `ffmpeg_command`. See the [Stream Movie](/api-reference/stream-movie) reference for the full response shape and field descriptions.
 
 ### Parameters
 
