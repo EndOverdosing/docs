@@ -1,6 +1,6 @@
 ---
 title: Download
-description: Download or inspect a video file by URL
+description: Download a video file by URL through the Vyla proxy
 ---
 
 ## Endpoint
@@ -9,21 +9,22 @@ description: Download or inspect a video file by URL
 GET /api/download
 ```
 
-Fetches a video file and streams it to the browser as a download. Supports URL unwrapping for third-party proxy URLs and returns proper `Content-Disposition` headers.
+Fetches a video file and streams it to the browser as a download. Automatically sets `Content-Disposition` so browsers prompt a save dialog. Handles HLS manifest rewriting for `.m3u8` URLs.
 
 ## Parameters
 
-| Name       | Type   | Required | Default         | Description                                      |
-|------------|--------|----------|-----------------|--------------------------------------------------|
-| `url`      | string | ✅       | —               | URL-encoded video URL                            |
-| `filename` | string | ❌       | `download.mp4`  | Output filename for the downloaded file          |
-| `info`     | string | ❌       | —               | Set to `1` to return JSON metadata instead of the file |
+| Name       | Type   | Required | Default        | Description |
+|------------|--------|----------|----------------|-------------|
+| `url`      | string | ✅       | —              | URL-encoded video URL |
+| `filename` | string | ❌       | `video.mp4`    | Output filename for the downloaded file |
+| `headers`  | string | ❌       | —              | Base64-encoded JSON of extra request headers to forward (e.g. `Referer`, `Origin`) |
+| `info`     | string | ❌       | —              | Set to `1` to return a HEAD check as JSON instead of the file |
 
 ## Download a File
 
 ```bash
-curl -L "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&filename=inception.mp4" \
-  -o inception.mp4
+curl -L "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&filename=avengers.mp4" \
+  -o avengers.mp4
 ```
 
 Or link to it directly in HTML:
@@ -34,54 +35,48 @@ Or link to it directly in HTML:
 </a>
 ```
 
-## Get File Metadata
+## Forwarding Headers
 
-Add `&info=1` to return JSON metadata about the file without downloading it:
+Some CDNs (e.g. `hakunaymatata.com`) require specific `Referer` and `Origin` headers or they return 403. Pass them as a base64-encoded JSON string:
+
+```js
+const headers = { "Referer": "https://lok-lok.cc/", "Origin": "https://lok-lok.cc" };
+const encoded = btoa(JSON.stringify(headers));
+const url = `https://vyla-api.pages.dev/api/download?url=${encodeURIComponent(sourceUrl)}&filename=movie.mp4&headers=${encodeURIComponent(encoded)}`;
+```
+
+The `headers` object from each source in the `/api/stream/movie` or `/api/stream/tv` response should always be forwarded this way.
+
+## HEAD Check
+
+Add `&info=1` to perform a HEAD request against the target URL and return its metadata as JSON without streaming the file:
 
 ```bash
 curl "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&info=1"
 ```
 
-### Metadata Response
-
 ```json
 {
   "success": true,
-  "resolved_url": "https://cdn.example.com/video.mp4",
-  "original_url": "https://proxy.example.com/video.mp4",
-  "filename": "inception.mp4",
   "status": 200,
+  "url": "https://example.com/video.mp4",
   "content_type": "video/mp4",
-  "content_length": 1610612736,
-  "content_length_mb": 1536.0,
-  "accept_ranges": "bytes",
-  "last_modified": "Mon, 01 Jan 2024 00:00:00 GMT",
-  "download_url": "/api/download?url=...&filename=inception.mp4"
+  "content_length": "1610612736"
 }
 ```
 
 ## Error Responses
 
 ```json
-{
-  "success": false,
-  "error": "Missing url parameter",
-  "usage": {
-    "download": "/api/download?url=<encoded_url>&filename=<name.mp4>",
-    "info": "/api/download?url=<encoded_url>&info=1"
-  }
-}
-```
-
-```json
+{ "success": false, "error": "Missing url param" }
+{ "success": false, "error": "Invalid URL" }
 { "success": false, "error": "Fetch failed: <reason>" }
-{ "success": false, "error": "Upstream returned 403" }
 ```
 
 <Warning>
-  This endpoint is intended for **MP4 and MKV** sources only. HLS (`.m3u8`) streams cannot be downloaded as a single file — use the `/api/player` endpoint to stream those instead.
+  This endpoint is intended for **MP4 and MKV** sources only. HLS (`.m3u8`) streams cannot be saved as a single file — use the `/player` endpoint to stream those instead.
 </Warning>
 
 <Note>
-  URLs wrapped in third-party proxies are automatically unwrapped before fetching, so you can pass raw source URLs directly from the `/api/movie` or `/api/tv` response.
+  Always forward the `headers` field from source objects. CDN-hosted files from providers like 02MovieDownloader and RgShows will return **Access Denied** without the correct Referer and Origin.
 </Note>

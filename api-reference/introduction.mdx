@@ -1,9 +1,17 @@
+Here are the corrected docs:
+
+---
+
+**`introduction.mdx`** — fix the API paths and add the stream prefix:
+
+```md
 ---
 title: Introduction
 description: Vyla API — stream and download movies & TV shows via TMDB ID
 ---
 
 Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and serves them through a unified JSON interface. Pass any TMDB ID and get back direct stream URLs, subtitles, and an embeddable player.
+
 ## Base URL
 
 ```
@@ -15,14 +23,14 @@ https://vyla-api.pages.dev
 Fetch sources for Inception (TMDB ID: 27205):
 
 ```bash
-curl https://vyla-api.pages.dev/api/movie?id=27205
+curl https://vyla-api.pages.dev/api/stream/movie?id=27205
 ```
 
 Embed the player in an iframe:
 
 ```html
 <iframe
-  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
+  src="https://vyla-api.pages.dev/player?type=movie&id=27205"
   width="100%"
   height="500"
   allowfullscreen
@@ -40,9 +48,9 @@ Sources are scraped concurrently from all providers, deduplicated, filtered to E
 | VidSrc | hls | Multi-domain template resolution |
 | Uembed | hls | Multi-API with m3u8 variant resolution |
 | VidRock | hls / mp4 | AES-CBC encrypted item IDs |
-| RgShows | mp4 | Single stream per title |
+| RgShows | mp4 | Decodes 02pcembed proxy to extract direct URL and headers |
 | VidZee | hls | AES-CBC encrypted stream URLs |
-| 02Embed | hls | Rewritten via HLS proxy |
+| 02Embed | hls | Rewritten via madvid3.xyz HLS proxy |
 
 ## Quality Priority
 
@@ -82,6 +90,8 @@ Every source in a response follows this shape:
 }
 ```
 
+The `headers` field is present on most sources and must be forwarded when proxying or downloading — omitting them will result in 403 Access Denied from the CDN.
+
 ## Subtitle Object
 
 ```json
@@ -91,3 +101,13 @@ Every source in a response follows this shape:
   "format": "vtt | srt"
 }
 ```
+
+## Notes
+
+- HLS (`.m3u8`) streams are for playback only, not direct download
+- MP4/MKV sources can be downloaded via `/api/download` when available
+- All source `headers` must be forwarded to the CDN — pass them as base64 JSON to `/api/proxy` or `/api/download` via the `headers` param
+- If one provider fails, sources from the remaining providers are still returned
+```
+
+---
