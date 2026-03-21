@@ -20,7 +20,7 @@ Identical to [`/api/movie`](/api-reference/movie) — scrapes all providers for 
 ## Example Request
 
 ```bash
-curl https://vyla-api.pages.dev/api/stream/movie?id=27205
+curl https://vyla-api.pages.dev/api/stream/movie?id=550
 ```
 
 ## Example Response
@@ -28,20 +28,23 @@ curl https://vyla-api.pages.dev/api/stream/movie?id=27205
 ```json
 {
   "success": true,
-  "results_found": 4,
+  "results_found": 8,
   "sources": [
     {
-      "url": "https://stream.example.com/movie.m3u8",
+      "url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1",
       "type": "hls",
       "quality": "1080p",
       "provider": "VixSrc",
       "audioTracks": [{ "language": "eng", "label": "English" }],
-      "headers": { "Referer": "https://vixsrc.to" }
+      "headers": {
+        "Referer": "https://vixsrc.to",
+        "Origin": "https://vixsrc.to"
+      }
     }
   ],
   "subtitles": [
     {
-      "url": "https://sub.example.com/en.vtt",
+      "url": "https://vixsrc.to/playlist/170060?type=subtitle&rendition=eng&token=...&expires=...&edge=...",
       "label": "English",
       "format": "vtt"
     }

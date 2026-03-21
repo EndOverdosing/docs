@@ -1,0 +1,112 @@
+---
+title: Subtitles
+description: How subtitles work in Vyla API — formats, deduplication, and usage
+---
+
+Every `/api/movie`, `/api/tv`, `/api/download/movie`, and `/api/download/tv` response includes a `subtitles` array alongside `sources`.
+
+## Subtitle Object
+
+```json
+{
+  "url": "https://vdrk.b-cdn.net/cache/movie/550/English.vtt",
+  "label": "English",
+  "format": "vtt"
+}
+```
+
+| Field    | Type   | Description                        |
+|----------|--------|------------------------------------|
+| `url`    | string | Direct URL to the subtitle file    |
+| `label`  | string | Display name (e.g. `English [CC]`, `French`, `Bengali`) |
+| `format` | string | `vtt` or `srt`                     |
+
+## Sources of Subtitles
+
+Subtitles are collected from multiple providers and merged:
+
+| Provider | Subtitle source |
+|----------|-----------------|
+| VixSrc | Signed `.vtt` tracks embedded in the playlist manifest |
+| VidRock | CDN-hosted `.vtt` files at `vdrk.b-cdn.net` |
+| 02Embed | Proxied VidRock/VixSrc subtitles via madvid3.xyz |
+| 02MovieDownloader | CloudFront-signed `.srt` files from hakunaymatata CDN |
+
+## Deduplication
+
+The same subtitle file is often returned by multiple providers through different proxy chains. Vyla API automatically deduplicates subtitles by their underlying URL so you don't get the same track listed multiple times.
+
+For example, all of these point to the same English subtitle and are collapsed to one entry:
+
+```
+https://vdrk.b-cdn.net/cache/movie/550/English.vtt
+https://madvid3.xyz/api/hls-proxy?url=...02pcembed.site...vdrk.b-cdn.net/cache/movie/550/English.vtt...
+```
+
+VixSrc subtitle tokens (`token`, `expires`, `edge`) are also stripped before deduplication so the same rendition from different scrape calls doesn't produce duplicates.
+
+## Using Subtitles in a Browser Player
+
+Subtitle URLs from VixSrc and some CDN sources require a `Referer` header. Route them through `/api/proxy` to handle this automatically:
+
+```js
+const res = await fetch("https://vyla-api.pages.dev/api/movie?id=550");
+const data = await res.json();
+
+const video = document.getElementById("player");
+
+data.subtitles.forEach((sub, i) => {
+  const track = document.createElement("track");
+  track.kind = "subtitles";
+  track.label = sub.label;
+  track.srclang = sub.label.toLowerCase().startsWith("fr") ? "fr" : "en";
+  track.src = "https://vyla-api.pages.dev/api/proxy?url=" + encodeURIComponent(sub.url);
+  if (i === 0) track.default = true;
+  video.appendChild(track);
+});
+```
+
+## Using Subtitles with HLS.js
+
+HLS.js doesn't use `<track>` elements — inject subtitles after the manifest is parsed:
+
+```js
+hls.on(Hls.Events.MANIFEST_PARSED, () => {
+  data.subtitles.forEach((sub, i) => {
+    const track = document.createElement("track");
+    track.kind = "subtitles";
+    track.label = sub.label;
+    track.srclang = "en";
+    track.src = "https://vyla-api.pages.dev/api/proxy?url=" + encodeURIComponent(sub.url);
+    if (i === 0) track.default = true;
+    video.appendChild(track);
+  });
+
+  video.play();
+});
+```
+
+## VTT vs SRT
+
+| Format | Notes |
+|--------|-------|
+| `vtt` | Native browser support — works directly in `<track src>` |
+| `srt` | Requires conversion for browser playback. Use a library like [subtitle.js](https://github.com/gsantiago/subtitle.js) or serve via a proxy that converts on the fly |
+
+Most subtitles returned are `.vtt`. SRT files come primarily from the hakunaymatata CDN via 02MovieDownloader.
+
+## Common Labels
+
+| Label | Description |
+|-------|-------------|
+| `English` | Standard English subtitles |
+| `English [CC]` | Closed captions (includes sound descriptions) |
+| `English - English` | Duplicate label from VidRock CDN naming |
+| `English 1`, `English 2` ... | Multiple English tracks (e.g. SDH vs standard) |
+| `French` | French subtitles |
+| `French - Canadian French` | Canadian French variant |
+| `Bengali` | Bengali subtitles (from VidRock) |
+
+<Note>
+  The `/api/player` endpoint handles all of this automatically — subtitles are proxied and injected as `<track>` elements with no configuration needed.
+</Note>

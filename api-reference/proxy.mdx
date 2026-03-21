@@ -14,9 +14,9 @@ Proxies any URL through Cloudflare Workers. Handles CORS, injects required `Refe
 
 ## Parameters
 
-| Name      | Type   | Required | Description                                         |
-|-----------|--------|----------|-----------------------------------------------------|
-| `url`     | string | ✅       | URL-encoded target URL                              |
+| Name      | Type   | Required | Description                                              |
+|-----------|--------|----------|----------------------------------------------------------|
+| `url`     | string | ✅       | URL-encoded target URL                                   |
 | `headers` | string | ❌       | Base64-encoded JSON object of additional request headers |
 
 ## Example Requests
@@ -34,19 +34,30 @@ curl "https://vyla-api.pages.dev/api/proxy?url=https%3A%2F%2Fexample.com%2Fstrea
 The `headers` parameter must be a base64-encoded JSON object:
 
 ```javascript
-const headers = { Referer: "https://example.com", Origin: "https://example.com" };
+const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
 const encoded = btoa(JSON.stringify(headers));
 // Pass as &headers=eyJSZWZlcmVyIjoia...
 ```
 
 ## M3U8 Rewriting
 
-When the proxied URL returns an m3u8 playlist, all segment and variant URLs inside it are automatically rewritten to also go through `/api/proxy`. This ensures the entire HLS stream plays without CORS issues.
+When the proxied URL returns an m3u8 playlist, all segment and variant URLs inside it are automatically rewritten to also go through `/api/proxy`. This ensures the entire HLS stream plays without CORS issues in a browser player.
 
 ```
 Original segment:  https://cdn.example.com/seg001.ts
 Rewritten segment: https://vyla-api.pages.dev/api/proxy?url=https%3A%2F%2Fcdn.example.com%2Fseg001.ts
 ```
+
+If the original request included a `headers` param, it is preserved and forwarded for every rewritten segment URL automatically.
+
+## Special Header Handling
+
+For known providers, the proxy automatically injects the correct headers even without the `headers` param:
+
+| Domain | Auto-injected headers |
+|--------|-----------------------|
+| `tripplestream.online`, `hlmv-files` | `Referer: https://www.rgshows.ru`, `Origin: https://www.rgshows.ru` |
+| Any other URL | `Referer` and `Origin` set to the URL's own origin |
 
 ## Security
 
@@ -55,6 +66,7 @@ Private IP ranges and localhost are blocked to prevent SSRF:
 - `127.0.0.1`, `::1`, `0.0.0.0`
 - `10.x.x.x`, `192.168.x.x`, `172.16-31.x.x`
 - `.internal`, `.local` domains
+- `169.254.169.254` (GCP metadata)
 
 ## Error Responses
 
@@ -67,5 +79,5 @@ Private IP ranges and localhost are blocked to prevent SSRF:
 ```
 
 <Note>
-  The proxy automatically sets a default `User-Agent`, `Origin`, and `Referer` based on the target URL. Custom headers passed via the `headers` parameter are merged on top.
+  The proxy is used internally by `/api/player` — all stream and subtitle URLs served to the player are routed through `/api/proxy` to handle CORS and required headers automatically.
 </Note>

@@ -1,16 +1,9 @@
-Here are the corrected docs:
-
----
-
-**`introduction.mdx`** — fix the API paths and add the stream prefix:
-
-```md
 ---
 title: Introduction
 description: Vyla API — stream and download movies & TV shows via TMDB ID
 ---
 
-Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and serves them through a unified JSON interface. Pass any TMDB ID and get back direct stream URLs, subtitles, and an embeddable player.
+Vyla API is a Cloudflare Pages API that scrapes streaming sources from multiple providers and serves them through a unified JSON interface. Pass any TMDB ID and get back direct stream URLs, subtitles, download links, ffmpeg commands, and an embeddable player.
 
 ## Base URL
 
@@ -23,19 +16,39 @@ https://vyla-api.pages.dev
 Fetch sources for Inception (TMDB ID: 27205):
 
 ```bash
-curl https://vyla-api.pages.dev/api/stream/movie?id=27205
+curl https://vyla-api.pages.dev/api/movie?id=27205
+```
+
+Get download-ready links with ffmpeg commands:
+
+```bash
+curl https://vyla-api.pages.dev/api/download/movie?id=27205
 ```
 
 Embed the player in an iframe:
 
 ```html
 <iframe
-  src="https://vyla-api.pages.dev/player?type=movie&id=27205"
+  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
   width="100%"
   height="500"
   allowfullscreen
 ></iframe>
 ```
+
+## Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/movie` | Streaming sources for a movie |
+| `GET /api/tv` | Streaming sources for a TV episode |
+| `GET /api/stream/movie` | Alias of `/api/movie` |
+| `GET /api/stream/tv` | Alias of `/api/tv` |
+| `GET /api/download/movie` | Download-ready sources + ffmpeg commands for a movie |
+| `GET /api/download/tv` | Download-ready sources + ffmpeg commands for a TV episode |
+| `GET /api/download` | Proxy-download a single video URL directly |
+| `GET /api/proxy` | Proxy any URL through Cloudflare with CORS + header injection |
+| `GET /api/player` | Embeddable fullscreen HTML player |
 
 ## Providers
 
@@ -43,14 +56,14 @@ Sources are scraped concurrently from all providers, deduplicated, filtered to E
 
 | Provider | Type | Notes |
 |----------|------|-------|
-| 02MovieDownloader | mp4 / hls | Requires token verification |
-| VixSrc | hls | Token + expiry from page HTML |
-| VidSrc | hls | Multi-domain template resolution |
+| 02MovieDownloader | mp4 / mkv | Requires token verification |
+| VixSrc | hls | Token + expiry, playlist URL format |
+| VidSrc | hls | Multi-CDN mirror deduplication |
 | Uembed | hls | Multi-API with m3u8 variant resolution |
 | VidRock | hls / mp4 | AES-CBC encrypted item IDs |
-| RgShows | mp4 | Decodes 02pcembed proxy to extract direct URL and headers |
+| RgShows | mp4 | Direct CDN with tripplestream headers |
 | VidZee | hls | AES-CBC encrypted stream URLs |
-| 02Embed | hls | Rewritten via madvid3.xyz HLS proxy |
+| 02Embed | hls | Unwrapped from madvid3/02pcembed proxy chain |
 
 ## Quality Priority
 
@@ -72,7 +85,7 @@ Access-Control-Allow-Headers: *
 
 ## Source Object
 
-Every source in a response follows this shape:
+Every source in a `/api/movie` or `/api/tv` response follows this shape:
 
 ```json
 {
@@ -90,7 +103,27 @@ Every source in a response follows this shape:
 }
 ```
 
-The `headers` field is present on most sources and must be forwarded when proxying or downloading — omitting them will result in 403 Access Denied from the CDN.
+The `headers` field must be forwarded when proxying or downloading — omitting them will result in 403 errors from the CDN.
+
+## Download Source Object
+
+Every source in a `/api/download/movie` or `/api/download/tv` response follows this shape:
+
+```json
+{
+  "provider": "VixSrc",
+  "quality": "1080p",
+  "type": "hls",
+  "url": "https://vixsrc.to/playlist/...",
+  "is_hls": true,
+  "referer": "https://vixsrc.to/",
+  "ffmpeg_command": "ffmpeg -headers \"...\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc output.mp4",
+  "download_url": null
+}
+```
+
+- `download_url` is populated for direct MP4/MKV files — use it as a browser download link
+- `download_url` is `null` for HLS streams — use `ffmpeg_command` instead to mux to mp4
 
 ## Subtitle Object
 
@@ -104,10 +137,8 @@ The `headers` field is present on most sources and must be forwarded when proxyi
 
 ## Notes
 
-- HLS (`.m3u8`) streams are for playback only, not direct download
-- MP4/MKV sources can be downloaded via `/api/download` when available
+- HLS (`.m3u8`) streams and vixsrc `/playlist/` URLs are for playback or ffmpeg only — they cannot be saved as a single file via a browser link
+- MP4/MKV sources can be downloaded directly via `/api/download` using the `download_url` field
 - All source `headers` must be forwarded to the CDN — pass them as base64 JSON to `/api/proxy` or `/api/download` via the `headers` param
-- If one provider fails, sources from the remaining providers are still returned
-```
-
----
+- Duplicate sources (same underlying URL wrapped by different proxy chains) are automatically removed
+- CDN mirror duplicates (e.g. same stream path across multiple `tmstr*.` hostnames) are collapsed to one entry

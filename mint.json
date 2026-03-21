@@ -26,7 +26,15 @@
         {
             "group": "Getting Started",
             "pages": [
-                "introduction"
+                "introduction",
+                "api-reference/quickstart"
+            ]
+        },
+        {
+            "group": "Guides",
+            "pages": [
+                "api-reference/subtitles",
+                "api-reference/errors"
             ]
         },
         {

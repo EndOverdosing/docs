@@ -1,0 +1,173 @@
+---
+title: Quickstart
+description: Get up and running with Vyla API in under 5 minutes
+---
+
+## Pick your use case
+
+<CardGroup cols={2}>
+  <Card title="Embed a Player" icon="play" href="#embed-a-player">
+    Drop a working video player into any page with one iframe
+  </Card>
+  <Card title="Build Your Own Player" icon="code" href="#build-your-own-player">
+    Fetch sources as JSON and plug them into your own UI
+  </Card>
+  <Card title="Download a Movie" icon="download" href="#download-a-movie">
+    Get direct download links or ffmpeg commands for any title
+  </Card>
+  <Card title="Use the Proxy" icon="shield" href="#use-the-proxy">
+    Route any stream URL through Cloudflare to fix CORS issues
+  </Card>
+</CardGroup>
+
+---
+
+## Embed a Player
+
+The fastest way to get video playing. One iframe, zero configuration:
+
+```html
+<!-- Movie -->
+<iframe
+  src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
+  width="100%"
+  height="500"
+  allowfullscreen
+  frameborder="0"
+></iframe>
+
+<!-- TV Episode -->
+<iframe
+  src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
+  width="100%"
+  height="500"
+  allowfullscreen
+  frameborder="0"
+></iframe>
+```
+
+Replace `550` with any TMDB movie ID, or `456` with any TMDB series ID.
+
+---
+
+## Build Your Own Player
+
+Fetch sources as JSON, then feed them into HLS.js or a native `<video>` element.
+
+### 1. Get sources
+
+```bash
+curl https://vyla-api.pages.dev/api/movie?id=550
+```
+
+### 2. Play an HLS source with HLS.js
+
+```html
+<video id="player" controls></video>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script>
+async function loadMovie(tmdbId) {
+  const res = await fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`);
+  const data = await res.json();
+
+  if (!data.success || !data.sources.length) return;
+
+  const source = data.sources[0];
+  const video = document.getElementById("player");
+  const proxyBase = "https://vyla-api.pages.dev/api/proxy?url=";
+
+  if (source.type === "hls" && Hls.isSupported()) {
+    const hls = new Hls();
+    const headers = source.headers ? btoa(JSON.stringify(source.headers)) : null;
+    const proxiedUrl = proxyBase + encodeURIComponent(source.url)
+      + (headers ? "&headers=" + encodeURIComponent(headers) : "");
+
+    hls.loadSource(proxiedUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+  } else {
+    video.src = source.url;
+    video.play();
+  }
+}
+
+loadMovie(550);
+</script>
+```
+
+### 3. Add subtitles
+
+```js
+data.subtitles.forEach((sub, i) => {
+  const track = document.createElement("track");
+  track.kind = "subtitles";
+  track.label = sub.label;
+  track.srclang = "en";
+  track.src = "https://vyla-api.pages.dev/api/proxy?url=" + encodeURIComponent(sub.url);
+  if (i === 0) track.default = true;
+  video.appendChild(track);
+});
+```
+
+---
+
+## Download a Movie
+
+### Get download links for all sources
+
+```bash
+curl https://vyla-api.pages.dev/api/download/movie?id=550
+```
+
+### Use `download_url` for MP4 files
+
+```js
+const res = await fetch("https://vyla-api.pages.dev/api/download/movie?id=550");
+const data = await res.json();
+
+const directSources = data.sources.filter(s => !s.is_hls && s.download_url);
+
+if (directSources.length) {
+  window.location.href = "https://vyla-api.pages.dev" + directSources[0].download_url;
+}
+```
+
+### Use `ffmpeg_command` for HLS sources
+
+Copy the `ffmpeg_command` from any HLS source and run it in your terminal:
+
+```bash
+ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0\r\n" \
+  -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
+  -c copy -bsf:a aac_adtstoasc output.mp4
+```
+
+---
+
+## Use the Proxy
+
+Fix CORS errors when embedding streams from third-party CDNs:
+
+```js
+const streamUrl = "https://vixsrc.to/playlist/170060?token=...";
+const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
+
+const proxiedUrl = "https://vyla-api.pages.dev/api/proxy"
+  + "?url=" + encodeURIComponent(streamUrl)
+  + "&headers=" + encodeURIComponent(btoa(JSON.stringify(headers)));
+```
+
+The proxy automatically rewrites all m3u8 segment URLs so the full stream is tunneled, not just the manifest.
+
+---
+
+## Finding TMDB IDs
+
+Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The ID is in the URL:
+
+```
+themoviedb.org/movie/550      →  id=550   (Fight Club)
+themoviedb.org/movie/27205    →  id=27205 (Inception)
+themoviedb.org/tv/456         →  id=456   (The Simpsons)
+themoviedb.org/tv/1396        →  id=1396  (Breaking Bad)
+```

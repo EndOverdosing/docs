@@ -21,10 +21,10 @@ GET /api/tv
 
 ```bash
 # Season 1, Episode 1 (defaults)
-curl https://vyla-api.pages.dev/api/tv?id=1396
+curl https://vyla-api.pages.dev/api/tv?id=456
 
 # Specific episode
-curl https://vyla-api.pages.dev/api/tv?id=1396&season=2&episode=3
+curl https://vyla-api.pages.dev/api/tv?id=456&season=2&episode=3
 ```
 
 ## Example Response
@@ -32,25 +32,43 @@ curl https://vyla-api.pages.dev/api/tv?id=1396&season=2&episode=3
 ```json
 {
   "success": true,
-  "results_found": 3,
+  "results_found": 9,
   "sources": [
     {
-      "url": "https://stream.example.com/ep.m3u8",
+      "url": "https://vixsrc.to/playlist/202976?token=...&expires=...&h=1",
       "type": "hls",
       "quality": "1080p",
-      "provider": "VidZee",
+      "provider": "VixSrc",
       "audioTracks": [
         { "language": "eng", "label": "English" }
       ],
       "headers": {
-        "Referer": "https://player.vidzee.wtf",
-        "Origin": "https://player.vidzee.wtf"
+        "Referer": "https://vixsrc.to",
+        "Origin": "https://vixsrc.to"
+      }
+    },
+    {
+      "url": "https://bcdnxw.hakunaymatata.com/bt/abc123.mp4?sign=...&t=...",
+      "type": "mp4",
+      "quality": "360p",
+      "provider": "VidRock",
+      "audioTracks": [
+        { "language": "eng", "label": "English" }
+      ],
+      "headers": {
+        "Referer": "https://lok-lok.cc/",
+        "Origin": "https://lok-lok.cc/"
       }
     }
   ],
   "subtitles": [
     {
-      "url": "https://sub.example.com/en.vtt",
+      "url": "https://vixsrc.to/playlist/202976?type=subtitle&rendition=3-eng&token=...&expires=...&edge=...",
+      "label": "English [CC]",
+      "format": "vtt"
+    },
+    {
+      "url": "https://vdrk.b-cdn.net/cache/tv/456/1/1/English.vtt",
       "label": "English",
       "format": "vtt"
     }
@@ -70,3 +88,7 @@ curl https://vyla-api.pages.dev/api/tv?id=1396&season=2&episode=3
 <Note>
   TMDB IDs for TV shows refer to the **series**, not individual episodes. Find them at [themoviedb.org](https://www.themoviedb.org).
 </Note>
+
+<Warning>
+  The `headers` field on each source must be forwarded when fetching the stream directly. Use `/api/download/tv` to get pre-built download URLs and ffmpeg commands with headers already encoded.
+</Warning>
