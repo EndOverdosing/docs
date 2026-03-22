@@ -1,6 +1,6 @@
 ---
 title: Stream TV
-description: Enriched TV episode sources with download URLs, ffmpeg commands, and deduplication
+description: Enriched TV episode sources with download URLs, ffmpeg commands, and deduplication across all providers
 ---
 
 ## Endpoint
@@ -9,99 +9,184 @@ description: Enriched TV episode sources with download URLs, ffmpeg commands, an
 GET /api/stream/tv
 ```
 
-Scrapes all providers for a TV episode and returns fully enriched sources. Unlike [`/api/tv`](/api-reference/tv), this endpoint fans out to all providers in parallel — each in an isolated request — so every provider gets its own CPU budget. Sources are deeply deduplicated, with pre-built `download_url`, `ffmpeg_command`, and proxied `vlc_url` fields on every source.
+`/api/download/tv` is an alias — both return the same response.
 
-`/api/download/tv` is an alias of this endpoint — they return the same response.
+Scrapes all 8 providers for a TV episode **in parallel** — each in an isolated request with its own CPU budget — and returns fully enriched sources. Unlike [`/api/tv`](/api-reference/tv), this endpoint produces significantly more sources, deep-deduplicates them, and attaches pre-built `download_url`, `ffmpeg_command`, and proxied `vlc_url` on every source.
+
+---
 
 ## Parameters
 
-| Name      | Type   | Required | Default | Description       |
-|-----------|--------|----------|---------|-------------------|
-| `id`      | string | ✅       | —       | TMDB series ID    |
-| `season`  | string | ❌       | `1`     | Season number     |
-| `episode` | string | ❌       | `1`     | Episode number    |
+<ParamField query="id" type="string" required>
+  TMDB **series** ID — not episode ID.
+</ParamField>
+
+<ParamField query="season" type="string" default="1">
+  Season number.
+</ParamField>
+
+<ParamField query="episode" type="string" default="1">
+  Episode number.
+</ParamField>
+
+---
 
 ## Example Request
 
-```bash
+<CodeGroup>
+```bash cURL
 curl "https://vyla-api.pages.dev/api/stream/tv?id=456&season=1&episode=1"
 ```
 
-## Example Response
+```js JavaScript
+const res = await fetch(
+  "https://vyla-api.pages.dev/api/stream/tv?id=456&season=1&episode=1"
+);
+const data = await res.json();
 
-```json
-{
-  "success": true,
-  "tmdb_id": "456",
-  "season": "1",
-  "episode": "1",
-  "results_found": 22,
-  "sources": [
-    {
-      "provider": "VidRock",
-      "quality": "360p",
-      "type": "mp4",
-      "url": "https://bcdnxw.hakunaymatata.com/bt/abc123.mp4?sign=...&t=...",
-      "is_hls": false,
-      "referer": "https://lok-lok.cc/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://lok-lok.cc/\\r\\nOrigin: https://lok-lok.cc\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://bcdnxw.hakunaymatata.com/...\" -c copy -bsf:a aac_adtstoasc s1e1_360p_1.mp4",
-      "download_url": "/api/download?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&filename=s1e1_360p_1.mp4&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly9sb2stbG9rLmNjLyIsIk9yaWdpbiI6Imh0dHBzOi8vbG9rLWxvay5jYyJ9",
-      "vlc_url": "/api/proxy?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly9sb2stbG9rLmNjLyIsIk9yaWdpbiI6Imh0dHBzOi8vbG9rLWxvay5jYyJ9"
-    },
-    {
-      "provider": "VixSrc",
-      "quality": "1080p",
-      "type": "hls",
-      "url": "https://vixsrc.to/playlist/202976?token=...&expires=...&h=1",
-      "is_hls": true,
-      "referer": "https://vixsrc.to/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\\r\\nOrigin: https://vixsrc.to\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://vixsrc.to/playlist/202976?token=...\" -c copy -bsf:a aac_adtstoasc s1e1_1080p_2.mp4",
-      "download_url": null,
-      "vlc_url": "/api/proxy?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F202976%3Ftoken%3D...&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly92aXhzcmMudG8vIiwiT3JpZ2luIjoiaHR0cHM6Ly92aXhzcmMudG8ifQ%3D%3D"
-    }
-  ],
-  "subtitles": [
-    {
-      "url": "https://vixsrc.to/playlist/202976?type=subtitle&rendition=3-eng&token=...&expires=...&edge=...",
-      "label": "English [CC]",
-      "format": "vtt"
-    },
-    {
-      "url": "https://vdrk.b-cdn.net/cache/tv/456/1/1/English.vtt",
-      "label": "English",
-      "format": "vtt"
-    }
-  ]
-}
+// Get best MP4 download
+const mp4 = data.sources.find(s => !s.is_hls && s.download_url);
+if (mp4) window.location.href = "https://vyla-api.pages.dev" + mp4.download_url;
 ```
+
+```python Python
+import requests
+
+data = requests.get(
+  "https://vyla-api.pages.dev/api/stream/tv",
+  params={"id": 456, "season": 1, "episode": 1}
+).json()
+```
+</CodeGroup>
+
+---
+
+## Response
+
+<Tabs>
+  <Tab title="Success">
+    ```json
+    {
+      "success": true,
+      "tmdb_id": "456",
+      "season": "1",
+      "episode": "1",
+      "results_found": 22,
+      "sources": [
+        {
+          "provider": "VidRock",
+          "quality": "360p",
+          "type": "mp4",
+          "url": "https://bcdnxw.hakunaymatata.com/bt/abc123.mp4?sign=...&t=...",
+          "is_hls": false,
+          "referer": "https://lok-lok.cc/",
+          "ffmpeg_command": "ffmpeg -headers \"Referer: https://lok-lok.cc/\r\n...\" -i \"https://bcdnxw.hakunaymatata.com/...\" -c copy -bsf:a aac_adtstoasc s1e1_360p_1.mp4",
+          "download_url": "/api/download?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&filename=s1e1_360p_1.mp4&headers=eyJ...",
+          "vlc_url": "/api/proxy?url=https%3A%2F%2Fbcdnxw.hakunaymatata.com%2F...&headers=eyJ..."
+        },
+        {
+          "provider": "VixSrc",
+          "quality": "1080p",
+          "type": "hls",
+          "url": "https://vixsrc.to/playlist/202976?token=...&expires=...&h=1",
+          "is_hls": true,
+          "referer": "https://vixsrc.to/",
+          "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\r\n...\" -i \"https://vixsrc.to/playlist/202976?token=...\" -c copy -bsf:a aac_adtstoasc s1e1_1080p_2.mp4",
+          "download_url": null,
+          "vlc_url": "/api/proxy?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F202976%3Ftoken%3D...&headers=eyJ..."
+        }
+      ],
+      "subtitles": [
+        {
+          "url": "https://vixsrc.to/playlist/202976?type=subtitle&rendition=3-eng&token=...&expires=...&edge=...",
+          "label": "English [CC]",
+          "format": "vtt"
+        },
+        {
+          "url": "https://vdrk.b-cdn.net/cache/tv/456/1/1/English.vtt",
+          "label": "English",
+          "format": "vtt"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab title="Error">
+    ```json
+    {
+      "success": false,
+      "error": "Missing id"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
 
 ## Enriched Source Object Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `provider` | string | Which provider this source came from |
-| `quality` | string | e.g. `1080p`, `720p`, `unknown` |
-| `type` | string | `hls`, `mp4`, or `mkv` |
-| `url` | string | The real, unwrapped stream URL |
-| `is_hls` | boolean | `true` if this is an HLS/m3u8 stream |
-| `referer` | string \| null | The `Referer` header required by the CDN |
-| `ffmpeg_command` | string | Ready-to-run ffmpeg command with all headers embedded |
-| `download_url` | string \| null | Relative URL for direct browser download. `null` for HLS sources |
-| `vlc_url` | string | Proxied URL — open in VLC or any player that supports URLs |
+<ResponseField name="provider" type="string">
+  Which provider this source came from.
+</ResponseField>
 
-## Error Response
+<ResponseField name="quality" type="string">
+  e.g. `1080p`, `720p`, `unknown`
+</ResponseField>
 
-```json
-{
-  "success": false,
-  "error": "Missing id"
-}
-```
+<ResponseField name="type" type="string">
+  `hls`, `mp4`, or `mkv`
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The real, unwrapped stream URL.
+</ResponseField>
+
+<ResponseField name="is_hls" type="boolean">
+  `true` if this is an HLS/m3u8 stream.
+</ResponseField>
+
+<ResponseField name="referer" type="string | null">
+  The `Referer` header required by the CDN.
+</ResponseField>
+
+<ResponseField name="ffmpeg_command" type="string">
+  Ready-to-run ffmpeg command with all headers embedded.
+</ResponseField>
+
+<ResponseField name="download_url" type="string | null">
+  Relative URL for direct browser download. `null` for HLS sources — use `ffmpeg_command` instead.
+</ResponseField>
+
+<ResponseField name="vlc_url" type="string">
+  Proxied URL — open in VLC or any player that supports URLs.
+</ResponseField>
+
+---
+
+## Using the Results
+
+<Tabs>
+  <Tab title="MP4/MKV — browser download">
+    ```js
+    const mp4 = data.sources.find(s => !s.is_hls && s.download_url);
+    if (mp4) {
+      window.location.href = "https://vyla-api.pages.dev" + mp4.download_url;
+    }
+    ```
+  </Tab>
+  <Tab title="HLS — ffmpeg mux">
+    ```bash
+    ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0...\r\n" \
+      -i "https://vixsrc.to/playlist/202976?token=...&expires=...&h=1" \
+      -c copy -bsf:a aac_adtstoasc s1e1_output.mp4
+    ```
+  </Tab>
+</Tabs>
 
 <Note>
   Duplicate sources (same underlying file wrapped by different provider proxy chains) are automatically removed.
 </Note>
 
 <Warning>
-  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to mp4 using the provided `ffmpeg_command`.
+  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to MP4 using the provided `ffmpeg_command`.
 </Warning>

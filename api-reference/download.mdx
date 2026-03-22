@@ -5,8 +5,14 @@ description: Download a video file by URL, or get enriched download-ready source
 
 Vyla API has two separate download systems:
 
-- `/api/download` — proxy-download a single raw video URL directly
-- `/api/stream/movie` and `/api/stream/tv` (also aliased as `/api/download/movie` and `/api/download/tv`) — fan out across all providers in parallel and return enriched sources with `download_url` and `ffmpeg_command`
+<CardGroup cols={2}>
+  <Card title="/api/download" href="#download-by-url">
+    Proxy-download a **single raw video URL** directly — stream it to the browser as a file download
+  </Card>
+  <Card title="/api/download/movie · /api/download/tv" href="#download-by-tmdb-id">
+    Fan out across all providers and return enriched sources with `download_url` and `ffmpeg_command`
+  </Card>
+</CardGroup>
 
 ---
 
@@ -20,70 +26,84 @@ Fetches a video file and streams it to the browser as a download. Automatically 
 
 ### Parameters
 
-| Name       | Type   | Required | Default        | Description |
-|------------|--------|----------|----------------|-------------|
-| `url`      | string | ✅       | —              | URL-encoded video URL |
-| `filename` | string | ❌       | `video.mp4`    | Output filename for the downloaded file |
-| `headers`  | string | ❌       | —              | Base64-encoded JSON of extra request headers (`Referer`, `Origin`) |
-| `info`     | string | ❌       | —              | Set to `1` to return a HEAD check as JSON instead of downloading |
-| `ffmpeg`   | string | ❌       | —              | Set to `1` to always return an ffmpeg command instead of downloading |
+<ParamField query="url" type="string" required>
+  URL-encoded video URL to download.
+</ParamField>
 
-### Download a File
+<ParamField query="filename" type="string" default="video.mp4">
+  Output filename shown in the browser save dialog.
+</ParamField>
 
-```bash
-curl -L "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&filename=movie.mp4" \
-  -o movie.mp4
-````
+<ParamField query="headers" type="string">
+  Base64-encoded JSON of extra request headers (`Referer`, `Origin`). Required for CDNs that enforce origin checking.
+</ParamField>
 
-Or as a browser download link:
+<ParamField query="info" type="string">
+  Set to `1` to return a HEAD check as JSON instead of downloading.
+</ParamField>
 
-```html
-<a href="https://vyla-api.pages.dev/api/download?url=<encoded_url>&filename=movie.mp4&headers=<base64_headers>">
-  Download
-</a>
-```
+<ParamField query="ffmpeg" type="string">
+  Set to `1` to always return an ffmpeg command instead of downloading.
+</ParamField>
 
-### Forwarding Headers
+### Usage
 
-CDNs like `hakunaymatata.com` and `tripplestream.online` require specific `Referer` and `Origin` headers or they return 403. Pass them as base64-encoded JSON:
+<Tabs>
+  <Tab title="cURL download">
+    ```bash
+    curl -L "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&filename=movie.mp4" \
+      -o movie.mp4
+    ```
+  </Tab>
+  <Tab title="HTML link">
+    ```html
+    <a href="https://vyla-api.pages.dev/api/download?url=<encoded_url>&filename=movie.mp4&headers=<base64_headers>">
+      Download
+    </a>
+    ```
+  </Tab>
+  <Tab title="With headers (JS)">
+    ```js
+    const headers = { "Referer": "https://lok-lok.cc/", "Origin": "https://lok-lok.cc" };
+    const encoded = encodeURIComponent(btoa(JSON.stringify(headers)));
+    const url = `https://vyla-api.pages.dev/api/download`
+      + `?url=${encodeURIComponent(sourceUrl)}`
+      + `&filename=movie.mp4`
+      + `&headers=${encoded}`;
+    ```
 
-```js
-const headers = { "Referer": "https://lok-lok.cc/", "Origin": "https://lok-lok.cc" };
-const encoded = encodeURIComponent(btoa(JSON.stringify(headers)));
-const url = `https://vyla-api.pages.dev/api/download?url=${encodeURIComponent(sourceUrl)}&filename=movie.mp4&headers=${encoded}`;
-```
+    <Note>
+      The `download_url` field from `/api/stream/movie` and `/api/stream/tv` already has this encoded and ready to use — just prepend the base URL.
+    </Note>
+  </Tab>
+  <Tab title="HEAD check">
+    ```bash
+    curl "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&info=1"
+    ```
 
-The `download_url` field from `/api/stream/movie` and `/api/stream/tv` already has this encoded and ready to use.
+    ```json
+    {
+      "success": true,
+      "status": 200,
+      "url": "https://example.com/video.mp4",
+      "content_type": "video/mp4",
+      "content_length": "1610612736",
+      "is_hls": false
+    }
+    ```
+  </Tab>
+</Tabs>
 
 ### HLS / Playlist URLs
 
-If the URL contains `.m3u8` or `/playlist/`, the endpoint automatically returns an ffmpeg command instead of attempting a stream download:
+If the URL contains `.m3u8` or `/playlist/`, the endpoint **automatically returns an ffmpeg command** instead of attempting a stream download:
 
 ```json
 {
   "success": true,
-  "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\\r\\nOrigin: https://vixsrc.to\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://vixsrc.to/playlist/170060?token=...\" -c copy -bsf:a aac_adtstoasc output.mp4",
+  "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0...\r\n\" -i \"https://vixsrc.to/playlist/170060?token=...\" -c copy -bsf:a aac_adtstoasc output.mp4",
   "url": "https://vixsrc.to/playlist/170060?token=...",
   "referer": "https://vixsrc.to/"
-}
-```
-
-### HEAD Check
-
-Add `&info=1` to check a URL's metadata without downloading:
-
-```bash
-curl "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvideo.mp4&info=1"
-```
-
-```json
-{
-  "success": true,
-  "status": 200,
-  "url": "https://example.com/video.mp4",
-  "content_type": "video/mp4",
-  "content_length": "1610612736",
-  "is_hls": false
 }
 ```
 
@@ -98,68 +118,77 @@ curl "https://vyla-api.pages.dev/api/download?url=https%3A%2F%2Fexample.com%2Fvi
 
 ---
 
-## Download by TMDB ID — Movie
+## Download by TMDB ID
 
-```
-GET /api/download/movie
-GET /api/stream/movie
-```
+<Tabs>
+  <Tab title="Movie">
+    ```
+    GET /api/download/movie
+    GET /api/stream/movie
+    ```
 
-These are aliases of each other. Both fan out to all providers in parallel — each provider runs in an isolated request with its own CPU budget — and return every source enriched with a ready-to-use `download_url` or `ffmpeg_command`. See the [Stream Movie](/api-reference/stream-movie) reference for the full response shape and field descriptions.
+    These are **aliases** — they return the same response.
 
-### Parameters
+    <ParamField query="id" type="string" required>
+      TMDB movie ID.
+    </ParamField>
 
-| Name | Type   | Required | Description   |
-| ---- | ------ | -------- | ------------- |
-| `id` | string | ✅        | TMDB movie ID |
+    ```bash
+    curl https://vyla-api.pages.dev/api/download/movie?id=550
+    ```
 
-### Example Request
+    See the [Stream Movie](/api-reference/stream-movie) reference for the full response shape and field descriptions.
+  </Tab>
+  <Tab title="TV Episode">
+    ```
+    GET /api/download/tv
+    GET /api/stream/tv
+    ```
 
-```bash
-curl https://vyla-api.pages.dev/api/download/movie?id=550
-```
+    These are **aliases** — they return the same response.
 
----
+    <ParamField query="id" type="string" required>
+      TMDB series ID.
+    </ParamField>
 
-## Download by TMDB ID — TV
+    <ParamField query="season" type="string" default="1">
+      Season number.
+    </ParamField>
 
-```
-GET /api/download/tv
-GET /api/stream/tv
-```
+    <ParamField query="episode" type="string" default="1">
+      Episode number.
+    </ParamField>
 
-These are aliases of each other. Same as the movie endpoint but for TV episodes. See the [Stream TV](/api-reference/stream-tv) reference for the full response shape and field descriptions.
+    ```bash
+    curl "https://vyla-api.pages.dev/api/download/tv?id=456&season=1&episode=1"
+    ```
 
-### Parameters
-
-| Name      | Type   | Required | Default | Description    |
-| --------- | ------ | -------- | ------- | -------------- |
-| `id`      | string | ✅        | —       | TMDB series ID |
-| `season`  | string | ❌        | `1`     | Season number  |
-| `episode` | string | ❌        | `1`     | Episode number |
-
-### Example Request
-
-```bash
-curl "https://vyla-api.pages.dev/api/download/tv?id=456&season=1&episode=1"
-```
+    See the [Stream TV](/api-reference/stream-tv) reference for the full response shape and field descriptions.
+  </Tab>
+</Tabs>
 
 ---
 
 ## Using the Results
 
-**For MP4/MKV sources** (`is_hls: false`) — use `download_url` directly as a browser `<a href>` download link. It already has all headers encoded.
-
-**For HLS sources** (`is_hls: true`) — copy the `ffmpeg_command` and run it in your terminal:
+<CardGroup cols={2}>
+  <Card title="MP4/MKV sources">
+    `is_hls: false` — use `download_url` directly as a browser `<a href>` download link. All headers are pre-encoded.
+  </Card>
+  <Card title="HLS sources">
+    `is_hls: true` — copy `ffmpeg_command` and run it in your terminal to mux the stream to MP4.
+  </Card>
+</CardGroup>
 
 ```bash
+# Example ffmpeg command from a HLS source
 ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0...\r\n" \
   -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
   -c copy -bsf:a aac_adtstoasc output.mp4
 ```
 
 <Warning>
-  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to mp4 using the provided `ffmpeg_command`.
+  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to MP4 using the provided `ffmpeg_command`.
 </Warning>
 
 <Note>

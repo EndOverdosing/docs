@@ -6,16 +6,16 @@ description: Get up and running with Vyla API in under 5 minutes
 ## Pick your use case
 
 <CardGroup cols={2}>
-  <Card title="Embed a Player" icon="play" href="#embed-a-player">
-    Drop a working video player into any page with one iframe
+  <Card title="Embed a Player" href="#embed-a-player">
+    Drop a working video player into any page with one iframe — no code required
   </Card>
-  <Card title="Build Your Own Player" icon="code" href="#build-your-own-player">
-    Fetch sources as JSON and plug them into your own UI
+  <Card title="Build Your Own Player" href="#build-your-own-player">
+    Fetch sources as JSON and plug them into your own UI with HLS.js
   </Card>
-  <Card title="Download a Movie" icon="download" href="#download-a-movie">
-    Get direct download links or ffmpeg commands for any title
+  <Card title="Download a Movie" href="#download-a-movie">
+    Get direct download links or ready-to-run ffmpeg commands for any title
   </Card>
-  <Card title="Use the Proxy" icon="shield" href="#use-the-proxy">
+  <Card title="Use the Proxy"href="#use-the-proxy">
     Route any stream URL through Cloudflare to fix CORS issues
   </Card>
 </CardGroup>
@@ -24,127 +24,157 @@ description: Get up and running with Vyla API in under 5 minutes
 
 ## Embed a Player
 
-The fastest way to get video playing. One iframe, zero configuration:
+The fastest way to get video playing. One `<iframe>`, zero configuration:
 
-```html
-<!-- Movie -->
-<iframe
-  src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
-  width="100%"
-  height="500"
-  allowfullscreen
-  frameborder="0"
-></iframe>
-
-<!-- TV Episode -->
-<iframe
-  src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
-  width="100%"
-  height="500"
-  allowfullscreen
-  frameborder="0"
-></iframe>
-```
+<Tabs>
+  <Tab title="Movie">
+    ```html
+    <iframe
+      src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
+      width="100%"
+      height="500"
+      allowfullscreen
+      frameborder="0"
+    ></iframe>
+    ```
+  </Tab>
+  <Tab title="TV Episode">
+    ```html
+    <iframe
+      src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
+      width="100%"
+      height="500"
+      allowfullscreen
+      frameborder="0"
+    ></iframe>
+    ```
+  </Tab>
+</Tabs>
 
 Replace `550` with any TMDB movie ID, or `456` with any TMDB series ID.
+
+<Tip>
+  **Finding TMDB IDs** — go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The ID is in the URL:
+  - `themoviedb.org/movie/550` → `id=550` (Fight Club)
+  - `themoviedb.org/tv/1396` → `id=1396` (Breaking Bad)
+</Tip>
 
 ---
 
 ## Build Your Own Player
 
-Fetch sources as JSON, then feed them into HLS.js or a native `<video>` element.
+<Steps>
+  <Step title="Fetch sources">
+    Choose between the basic or enriched endpoint depending on how much you need:
 
-### 1. Get sources
+    <CodeGroup>
+    ```bash Basic (single scrape pass)
+    curl https://vyla-api.pages.dev/api/movie?id=550
+    ```
 
-```bash
-# Basic — fewer sources, single scrape pass
-curl https://vyla-api.pages.dev/api/movie?id=550
+    ```bash Enriched (all providers in parallel)
+    curl https://vyla-api.pages.dev/api/stream/movie?id=550
+    ```
+    </CodeGroup>
 
-# Enriched — more sources, fans out across all providers in parallel
-curl https://vyla-api.pages.dev/api/stream/movie?id=550
-```
+    <Info>
+      The enriched `/api/stream/movie` endpoint fans out across all 8 providers and returns `vlc_url`, `ffmpeg_command`, and `download_url` pre-built on every source.
+    </Info>
+  </Step>
 
-### 2. Play an HLS source with HLS.js
+  <Step title="Play an HLS source with HLS.js">
+    ```html
+    <video id="player" controls></video>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+    <script>
+    async function loadMovie(tmdbId) {
+      const res = await fetch(`https://vyla-api.pages.dev/api/stream/movie?id=${tmdbId}`);
+      const data = await res.json();
 
-```html
-<video id="player" controls></video>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-<script>
-async function loadMovie(tmdbId) {
-  const res = await fetch(`https://vyla-api.pages.dev/api/stream/movie?id=${tmdbId}`);
-  const data = await res.json();
+      if (!data.success || !data.sources.length) return;
 
-  if (!data.success || !data.sources.length) return;
+      const source = data.sources[0];
+      const video = document.getElementById("player");
+      const proxyBase = "https://vyla-api.pages.dev/api/proxy?url=";
 
-  const source = data.sources[0];
-  const video = document.getElementById("player");
-  const proxyBase = "https://vyla-api.pages.dev/api/proxy?url=";
+      if (source.type === "hls" && Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(proxyBase + encodeURIComponent(source.url));
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      } else {
+        video.src = source.url;
+        video.play();
+      }
+    }
 
-  if (source.type === "hls" && Hls.isSupported()) {
-    const hls = new Hls();
-    hls.loadSource(proxyBase + encodeURIComponent(source.url));
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-  } else {
-    video.src = source.url;
-    video.play();
-  }
-}
+    loadMovie(550);
+    </script>
+    ```
 
-loadMovie(550);
-</script>
-```
+    <Note>
+      `/api/stream/movie` returns `vlc_url` on every source — a pre-built proxy URL with headers already encoded. You can pass it directly to HLS.js without any additional encoding.
+    </Note>
+  </Step>
 
-<Note>
-  `/api/stream/movie` returns `vlc_url` on every source — a pre-built proxy URL with headers already encoded. You can pass it directly to HLS.js without any additional encoding.
-</Note>
-
-### 3. Add subtitles
-
-```js
-data.subtitles.forEach((sub, i) => {
-  const track = document.createElement("track");
-  track.kind = "subtitles";
-  track.label = sub.label;
-  track.srclang = "en";
-  track.src = "https://vyla-api.pages.dev/api/proxy?url=" + encodeURIComponent(sub.url);
-  if (i === 0) track.default = true;
-  video.appendChild(track);
-});
-```
+  <Step title="Add subtitles">
+    ```js
+    data.subtitles.forEach((sub, i) => {
+      const track = document.createElement("track");
+      track.kind = "subtitles";
+      track.label = sub.label;
+      track.srclang = "en";
+      track.src = "https://vyla-api.pages.dev/api/proxy?url=" + encodeURIComponent(sub.url);
+      if (i === 0) track.default = true;
+      video.appendChild(track);
+    });
+    ```
+  </Step>
+</Steps>
 
 ---
 
 ## Download a Movie
 
-### Get download-ready links for all sources
+<Steps>
+  <Step title="Get enriched sources">
+    ```bash
+    curl https://vyla-api.pages.dev/api/download/movie?id=550
+    ```
+  </Step>
 
-```bash
-curl https://vyla-api.pages.dev/api/download/movie?id=550
-```
+  <Step title="Choose your source type">
+    <Tabs>
+      <Tab title="MP4/MKV — direct download">
+        Use `download_url` — it's a pre-built link with all headers encoded:
 
-### Use `download_url` for MP4 files
+        ```js
+        const res = await fetch("https://vyla-api.pages.dev/api/download/movie?id=550");
+        const data = await res.json();
 
-```js
-const res = await fetch("https://vyla-api.pages.dev/api/download/movie?id=550");
-const data = await res.json();
+        const directSources = data.sources.filter(s => !s.is_hls && s.download_url);
 
-const directSources = data.sources.filter(s => !s.is_hls && s.download_url);
+        if (directSources.length) {
+          window.location.href = "https://vyla-api.pages.dev" + directSources[0].download_url;
+        }
+        ```
+      </Tab>
+      <Tab title="HLS — ffmpeg mux">
+        Copy `ffmpeg_command` from any HLS source and run it:
 
-if (directSources.length) {
-  window.location.href = "https://vyla-api.pages.dev" + directSources[0].download_url;
-}
-```
+        ```bash
+        ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0\r\n" \
+          -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
+          -c copy -bsf:a aac_adtstoasc output.mp4
+        ```
 
-### Use `ffmpeg_command` for HLS sources
-
-Copy the `ffmpeg_command` from any HLS source and run it in your terminal:
-
-```bash
-ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0\r\n" \
-  -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
-  -c copy -bsf:a aac_adtstoasc output.mp4
-```
+        <Warning>
+          HLS/playlist URLs cannot be downloaded as a single browser link. They must be muxed to MP4 using the provided `ffmpeg_command`.
+        </Warning>
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
 
 ---
 
@@ -161,7 +191,9 @@ const proxiedUrl = "https://vyla-api.pages.dev/api/proxy"
   + "&headers=" + encodeURIComponent(btoa(JSON.stringify(headers)));
 ```
 
-The proxy automatically rewrites all m3u8 segment URLs so the full stream is tunneled, not just the manifest.
+<Note>
+  The proxy automatically rewrites all m3u8 segment URLs so the **entire HLS stream** is tunneled — not just the manifest. You get one URL and the rest is handled transparently.
+</Note>
 
 ---
 
@@ -169,9 +201,9 @@ The proxy automatically rewrites all m3u8 segment URLs so the full stream is tun
 
 Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The ID is in the URL:
 
-```
-themoviedb.org/movie/550      →  id=550   (Fight Club)
-themoviedb.org/movie/27205    →  id=27205 (Inception)
-themoviedb.org/tv/456         →  id=456   (The Simpsons)
-themoviedb.org/tv/1396        →  id=1396  (Breaking Bad)
-```
+| URL | TMDB ID | Title |
+|-----|---------|-------|
+| `themoviedb.org/movie/550` | `550` | Fight Club |
+| `themoviedb.org/movie/27205` | `27205` | Inception |
+| `themoviedb.org/tv/456` | `456` | The Simpsons |
+| `themoviedb.org/tv/1396` | `1396` | Breaking Bad |

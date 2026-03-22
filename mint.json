@@ -6,9 +6,17 @@
     },
     "favicon": "/favicon.ico",
     "colors": {
-        "primary": "#000000",
+        "primary": "#ffffff",
         "light": "#ffffff",
-        "dark": "#000000"
+        "dark": "#111111",
+        "background": {
+            "dark": "#000000",
+            "light": "#ffffff"
+        },
+        "anchors": {
+            "from": "#ffffff",
+            "to": "#000000"
+        }
     },
     "topbarLinks": [
         {
@@ -17,11 +25,37 @@
         }
     ],
     "topbarCtaButton": {
-        "name": "API",
+        "name": "Live API",
         "url": "https://vyla-api.pages.dev",
         "type": "link",
         "style": "pill"
     },
+    "tabs": [
+        {
+            "name": "Documentation",
+            "url": "/"
+        },
+        {
+            "name": "API Reference",
+            "url": "/api-reference"
+        },
+        {
+            "name": "Playground",
+            "url": "/api-reference/playground"
+        }
+    ],
+    "anchors": [
+        {
+            "name": "GitHub",
+            "icon": "github",
+            "url": "https://github.com/EndOverdosing/Vyla-Player-API"
+        },
+        {
+            "name": "Live API",
+            "icon": "bolt",
+            "url": "https://vyla-api.pages.dev"
+        }
+    ],
     "navigation": [
         {
             "group": "Getting Started",
@@ -62,6 +96,22 @@
             ]
         }
     ],
+    "feedback": {
+        "thumbsRating": true,
+        "suggestEdit": true,
+        "raiseIssue": true
+    },
+    "metadata": {
+        "og:title": "Vyla API",
+        "og:description": "Stream and download any movie or TV show via TMDB ID — one API, eight providers, zero config.",
+        "twitter:card": "summary_large_image",
+        "twitter:title": "Vyla API",
+        "twitter:description": "Stream and download any movie or TV show via TMDB ID."
+    },
+    "modeToggle": {
+        "default": "dark",
+        "isHidden": false
+    },
     "footer": {
         "socials": {
             "github": "https://github.com/EndOverdosing/Vyla-Player-API"

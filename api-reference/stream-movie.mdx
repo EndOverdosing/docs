@@ -1,6 +1,6 @@
 ---
 title: Stream Movie
-description: Enriched movie sources with download URLs, ffmpeg commands, and deduplication
+description: Enriched movie sources with download URLs, ffmpeg commands, and deduplication across all providers
 ---
 
 ## Endpoint
@@ -9,110 +9,181 @@ description: Enriched movie sources with download URLs, ffmpeg commands, and ded
 GET /api/stream/movie
 ```
 
-Scrapes all providers for a movie and returns fully enriched sources. Unlike [`/api/movie`](/api-reference/movie), this endpoint fans out to all providers in parallel — each in an isolated request — so every provider gets its own CPU budget. This produces significantly more sources than a single scrape pass. Sources are deeply deduplicated (collapsing provider proxy chains to their real underlying URL), with pre-built `download_url`, `ffmpeg_command`, and proxied `vlc_url` fields on every source.
+`/api/download/movie` is an alias — both return the same response.
 
-`/api/download/movie` is an alias of this endpoint — they return the same response.
+Scrapes all 8 providers for a movie **in parallel** — each in an isolated request with its own CPU budget — and returns fully enriched sources. Unlike [`/api/movie`](/api-reference/movie), this endpoint produces significantly more sources, deep-deduplicates them (collapsing provider proxy chains to their real underlying URL), and attaches pre-built `download_url`, `ffmpeg_command`, and proxied `vlc_url` on every source.
+
+---
 
 ## Parameters
 
-| Name | Type   | Required | Description   |
-|------|--------|----------|---------------|
-| `id` | string | ✅       | TMDB movie ID |
+<ParamField query="id" type="string" required>
+  TMDB movie ID.
+</ParamField>
+
+---
 
 ## Example Request
 
-```bash
+<CodeGroup>
+```bash cURL
 curl https://vyla-api.pages.dev/api/stream/movie?id=550
 ```
 
-## Example Response
-
-```json
-{
-  "success": true,
-  "tmdb_id": "550",
-  "results_found": 26,
-  "sources": [
-    {
-      "provider": "RgShows",
-      "quality": "1080p",
-      "type": "mp4",
-      "url": "https://hlmv-files-1.tripplestream.online/gs/abc123?q=.mp4",
-      "is_hls": false,
-      "referer": "https://www.rgshows.ru/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://www.rgshows.ru/\\r\\nOrigin: https://www.rgshows.ru\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc 550_1080p_1.mp4",
-      "download_url": "/api/download?url=https%3A%2F%2Fhlmv-files-1.tripplestream.online%2Fgs%2Fabc123%3Fq%3D.mp4&filename=550_1080p_1.mp4&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly93d3cucmdzaG93cy5ydS8iLCJPcmlnaW4iOiJodHRwczovL3d3dy5yZ3Nob3dzLnJ1In0%3D",
-      "vlc_url": "/api/proxy?url=https%3A%2F%2Fhlmv-files-1.tripplestream.online%2Fgs%2Fabc123%3Fq%3D.mp4&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly93d3cucmdzaG93cy5ydS8iLCJPcmlnaW4iOiJodHRwczovL3d3dy5yZ3Nob3dzLnJ1In0%3D"
-    },
-    {
-      "provider": "VixSrc",
-      "quality": "1080p",
-      "type": "hls",
-      "url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1",
-      "is_hls": true,
-      "referer": "https://vixsrc.to/",
-      "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\\r\\nOrigin: https://vixsrc.to\\r\\nUser-Agent: Mozilla/5.0...\\r\\n\" -i \"https://vixsrc.to/playlist/170060?token=...\" -c copy -bsf:a aac_adtstoasc 550_1080p_2.mp4",
-      "download_url": null,
-      "vlc_url": "/api/proxy?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F170060%3Ftoken%3D...&headers=eyJSZWZlcmVyIjoiaHR0cHM6Ly92aXhzcmMudG8vIiwiT3JpZ2luIjoiaHR0cHM6Ly92aXhzcmMudG8ifQ%3D%3D"
-    }
-  ],
-  "subtitles": [
-    {
-      "url": "https://vixsrc.to/playlist/170060?type=subtitle&rendition=eng&token=...&expires=...&edge=...",
-      "label": "English",
-      "format": "vtt"
-    }
-  ]
-}
-```
-
-## Enriched Source Object Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `provider` | string | Which provider this source came from |
-| `quality` | string | e.g. `1080p`, `720p`, `unknown` |
-| `type` | string | `hls`, `mp4`, or `mkv` |
-| `url` | string | The real, unwrapped stream URL |
-| `is_hls` | boolean | `true` if this is an HLS/m3u8 stream |
-| `referer` | string \| null | The `Referer` header required by the CDN |
-| `ffmpeg_command` | string | Ready-to-run ffmpeg command with all headers embedded |
-| `download_url` | string \| null | Relative URL for direct browser download. `null` for HLS sources |
-| `vlc_url` | string | Proxied URL — open in VLC or any player that supports URLs |
-
-## Error Response
-
-```json
-{
-  "success": false,
-  "error": "Missing id"
-}
-```
-
-## Using the Results
-
-**For MP4/MKV sources** (`is_hls: false`) — use `download_url` as a browser download link:
-
-```js
+```js JavaScript
 const res = await fetch("https://vyla-api.pages.dev/api/stream/movie?id=550");
 const data = await res.json();
 
+// Download first available MP4
 const mp4 = data.sources.find(s => !s.is_hls && s.download_url);
 if (mp4) window.location.href = "https://vyla-api.pages.dev" + mp4.download_url;
 ```
 
-**For HLS sources** (`is_hls: true`) — copy `ffmpeg_command` and run it in your terminal:
+```python Python
+import requests
 
-```bash
-ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0...\r\n" \
-  -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
-  -c copy -bsf:a aac_adtstoasc output.mp4
+data = requests.get(
+  "https://vyla-api.pages.dev/api/stream/movie",
+  params={"id": 550}
+).json()
+
+print(data["results_found"], "sources found")
 ```
+</CodeGroup>
+
+---
+
+## Response
+
+<Tabs>
+  <Tab title="Success">
+    ```json
+    {
+      "success": true,
+      "tmdb_id": "550",
+      "results_found": 26,
+      "sources": [
+        {
+          "provider": "RgShows",
+          "quality": "1080p",
+          "type": "mp4",
+          "url": "https://hlmv-files-1.tripplestream.online/gs/abc123?q=.mp4",
+          "is_hls": false,
+          "referer": "https://www.rgshows.ru/",
+          "ffmpeg_command": "ffmpeg -headers \"Referer: https://www.rgshows.ru/\r\nOrigin: https://www.rgshows.ru\r\n...\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc 550_1080p_1.mp4",
+          "download_url": "/api/download?url=https%3A%2F%2Fhlmv-files-1.tripplestream.online%2F...&filename=550_1080p_1.mp4&headers=eyJ...",
+          "vlc_url": "/api/proxy?url=https%3A%2F%2Fhlmv-files-1.tripplestream.online%2F...&headers=eyJ..."
+        },
+        {
+          "provider": "VixSrc",
+          "quality": "1080p",
+          "type": "hls",
+          "url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1",
+          "is_hls": true,
+          "referer": "https://vixsrc.to/",
+          "ffmpeg_command": "ffmpeg -headers \"Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\n...\" -i \"https://vixsrc.to/playlist/170060?token=...\" -c copy -bsf:a aac_adtstoasc 550_1080p_2.mp4",
+          "download_url": null,
+          "vlc_url": "/api/proxy?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F170060%3Ftoken%3D...&headers=eyJ..."
+        }
+      ],
+      "subtitles": [
+        {
+          "url": "https://vixsrc.to/playlist/170060?type=subtitle&rendition=eng&token=...&expires=...&edge=...",
+          "label": "English",
+          "format": "vtt"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab title="Error">
+    ```json
+    {
+      "success": false,
+      "error": "Missing id"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Enriched Source Object Fields
+
+<ResponseField name="provider" type="string">
+  Which provider this source came from.
+</ResponseField>
+
+<ResponseField name="quality" type="string">
+  e.g. `1080p`, `720p`, `unknown`
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  `hls`, `mp4`, or `mkv`
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The real, unwrapped stream URL.
+</ResponseField>
+
+<ResponseField name="is_hls" type="boolean">
+  `true` if this is an HLS/m3u8 stream.
+</ResponseField>
+
+<ResponseField name="referer" type="string | null">
+  The `Referer` header required by the CDN.
+</ResponseField>
+
+<ResponseField name="ffmpeg_command" type="string">
+  Ready-to-run ffmpeg command with all headers embedded.
+</ResponseField>
+
+<ResponseField name="download_url" type="string | null">
+  Relative URL for direct browser download. `null` for HLS sources — use `ffmpeg_command` instead.
+</ResponseField>
+
+<ResponseField name="vlc_url" type="string">
+  Proxied URL — open in VLC or any player that supports URLs.
+</ResponseField>
+
+---
+
+## Using the Results
+
+<Tabs>
+  <Tab title="MP4/MKV — browser download">
+    ```js
+    const res = await fetch("https://vyla-api.pages.dev/api/stream/movie?id=550");
+    const data = await res.json();
+
+    const mp4 = data.sources.find(s => !s.is_hls && s.download_url);
+    if (mp4) {
+      window.location.href = "https://vyla-api.pages.dev" + mp4.download_url;
+    }
+    ```
+  </Tab>
+  <Tab title="HLS — ffmpeg mux">
+    Copy the `ffmpeg_command` from any HLS source and run it in your terminal:
+
+    ```bash
+    ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0...\r\n" \
+      -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
+      -c copy -bsf:a aac_adtstoasc output.mp4
+    ```
+  </Tab>
+  <Tab title="VLC / player URL">
+    Use the `vlc_url` field directly — headers are pre-encoded:
+
+    ```
+    vlc "https://vyla-api.pages.dev/api/proxy?url=...&headers=..."
+    ```
+  </Tab>
+</Tabs>
 
 <Note>
   Duplicate sources (same underlying file wrapped by different provider proxy chains) are automatically removed. CDN mirror duplicates (same stream path across multiple hostnames) are also collapsed to one entry.
 </Note>
 
 <Warning>
-  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to mp4 using the provided `ffmpeg_command`.
+  HLS/playlist URLs cannot be downloaded as a single file via a browser link. They must be muxed to MP4 using the provided `ffmpeg_command`.
 </Warning>

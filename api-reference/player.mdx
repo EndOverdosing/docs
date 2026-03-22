@@ -1,6 +1,6 @@
 ---
 title: Player
-description: Embeddable fullscreen HTML video player
+description: Embeddable fullscreen HTML video player with auto-fallback and subtitle injection
 ---
 
 ## Endpoint
@@ -11,62 +11,99 @@ GET /api/player
 
 Returns a self-contained HTML page with a fullscreen video player. All sources are fetched, proxied, and played automatically with HLS.js. If one source fails or stalls, the player falls back to the next source. Subtitles are injected automatically.
 
+---
+
 ## Parameters
 
-| Name      | Type   | Required | Default  | Description                          |
-|-----------|--------|----------|----------|--------------------------------------|
-| `type`    | string | ❌       | `movie`  | `movie` or `tv`                      |
-| `id`      | string | ✅       | —        | TMDB movie or series ID              |
-| `season`  | string | ❌       | `1`      | Season number (TV only)              |
-| `episode` | string | ❌       | `1`      | Episode number (TV only)             |
-| `nocheck` | string | ❌       | —        | Set to `1` to skip live source checks and use all sources directly |
+<ParamField query="id" type="string" required>
+  TMDB movie or series ID.
+</ParamField>
 
-## Example Requests
+<ParamField query="type" type="string" default="movie">
+  `movie` or `tv`
+</ParamField>
 
-```bash
-# Movie
-https://vyla-api.pages.dev/api/player?type=movie&id=550
+<ParamField query="season" type="string" default="1">
+  Season number — TV only.
+</ParamField>
 
-# TV episode
-https://vyla-api.pages.dev/api/player?type=tv&id=456&season=2&episode=3
+<ParamField query="episode" type="string" default="1">
+  Episode number — TV only.
+</ParamField>
 
-# Skip live checks (faster startup, some dead sources may be tried)
-https://vyla-api.pages.dev/api/player?type=movie&id=550&nocheck=1
-```
+<ParamField query="nocheck" type="string">
+  Set to `1` to skip live HEAD checks and use all sources directly. Faster startup, but some dead sources may be tried before a working one is found.
+</ParamField>
+
+---
 
 ## Embed as an iframe
 
-```html
-<!-- Movie -->
-<iframe
-  src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
-  width="100%"
-  height="500"
-  allowfullscreen
-  frameborder="0"
-></iframe>
+<Tabs>
+  <Tab title="Movie">
+    ```html
+    <iframe
+      src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
+      width="100%"
+      height="500"
+      allowfullscreen
+      frameborder="0"
+    ></iframe>
+    ```
+  </Tab>
+  <Tab title="TV Episode">
+    ```html
+    <iframe
+      src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
+      width="100%"
+      height="500"
+      allowfullscreen
+      frameborder="0"
+    ></iframe>
+    ```
+  </Tab>
+  <Tab title="Skip live checks">
+    ```html
+    <!-- Faster startup — skips HEAD verification -->
+    <iframe
+      src="https://vyla-api.pages.dev/api/player?type=movie&id=550&nocheck=1"
+      width="100%"
+      height="500"
+      allowfullscreen
+      frameborder="0"
+    ></iframe>
+    ```
+  </Tab>
+</Tabs>
 
-<!-- TV Episode -->
-<iframe
-  src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
-  width="100%"
-  height="500"
-  allowfullscreen
-  frameborder="0"
-></iframe>
-```
+---
 
 ## How It Works
 
-1. The player scrapes all providers and performs a live HEAD check on each source (unless `nocheck=1`)
-2. Sources that respond successfully are loaded first; dead sources are skipped
-3. If all sources fail the check, the full unfiltered list is used as a fallback
-4. Sources are loaded in order using HLS.js for HLS streams and the native `<video>` element for MP4
-5. A stall timer (8 seconds) auto-advances to the next source if playback doesn't begin
-6. All stream and subtitle URLs are routed through `/api/proxy` to handle CORS and required headers
-7. Subtitles are attached as `<track>` elements with the first track set as default
+<Steps>
+  <Step title="Scrape all providers">
+    The player scrapes all 8 providers concurrently and collects every available source.
+  </Step>
+  <Step title="Live HEAD check">
+    Each source is verified with a HEAD request (unless `nocheck=1`). Sources that respond successfully are loaded first; dead sources are skipped.
+  </Step>
+  <Step title="Fallback to full list">
+    If **all** sources fail the check, the full unfiltered list is used as a fallback — so the player always has something to try.
+  </Step>
+  <Step title="Play with HLS.js">
+    Sources are loaded in order — HLS.js for `.m3u8` streams, native `<video>` for MP4. All URLs are routed through `/api/proxy` automatically.
+  </Step>
+  <Step title="Auto-advance on failure">
+    An 8-second stall timer auto-advances to the next source if playback doesn't begin. On `error` events, the next source is tried immediately.
+  </Step>
+  <Step title="Subtitle injection">
+    Subtitles are attached as `<track>` elements with the first track set as default — no configuration needed.
+  </Step>
+</Steps>
 
-## Player Behavior
+---
+
+## Player Events & Behavior
 
 | Event | Action |
 |-------|--------|
@@ -76,7 +113,11 @@ https://vyla-api.pages.dev/api/player?type=movie&id=550&nocheck=1
 | `waiting` | Starts the 8-second stall timer if playback hasn't begun |
 | HLS fatal error | Destroys the HLS instance and tries the next source |
 
+---
+
 ## Error Responses
+
+The player returns HTML error pages rather than JSON:
 
 ```html
 <h2>Missing ?id=</h2>
@@ -87,5 +128,5 @@ https://vyla-api.pages.dev/api/player?type=movie&id=550&nocheck=1
 ```
 
 <Note>
-  The player uses HLS.js v1.5.13. On Safari, native HLS is used instead when HLS.js is not supported.
+  The player uses **HLS.js v1.5.13**. On Safari, native HLS is used instead when HLS.js is not supported.
 </Note>
