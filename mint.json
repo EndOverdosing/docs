@@ -2,11 +2,12 @@
     "name": "Vyla API",
     "logo": {
         "dark": "/logo/dark.png",
-        "light": "/logo/light.png"
+        "light": "/logo/light.png",
+        "href": "/"
     },
     "favicon": "/favicon.ico",
     "colors": {
-        "primary": "#ffffff",
+        "primary": "#111111",
         "light": "#ffffff",
         "dark": "#111111",
         "background": {
@@ -14,21 +15,27 @@
             "light": "#ffffff"
         },
         "anchors": {
-            "from": "#ffffff",
-            "to": "#000000"
+            "from": "#111111",
+            "to": "#111111"
         }
     },
     "topbarLinks": [
         {
             "name": "GitHub",
             "url": "https://github.com/EndOverdosing/Vyla-Player-API"
+        },
+        {
+            "name": "Documentation",
+            "url": "/"
+        },
+        {
+            "name": "Discord",
+            "url": "https://discord.gg/5eqRhKeywG"
         }
     ],
     "topbarCtaButton": {
-        "name": "Live API",
         "url": "https://vyla-api.pages.dev",
-        "type": "link",
-        "style": "pill"
+        "type": "github"
     },
     "tabs": [
         {
@@ -54,6 +61,11 @@
             "name": "Live API",
             "icon": "bolt",
             "url": "https://vyla-api.pages.dev"
+        },
+        {
+            "name": "Discord",
+            "icon": "discord",
+            "url": "https://discord.gg/5eqRhKeywG"
         }
     ],
     "navigation": [
@@ -61,14 +73,16 @@
             "group": "Getting Started",
             "pages": [
                 "introduction",
-                "api-reference/quickstart"
+                "api-reference/quickstart",
+                "api-reference/setup"
             ]
         },
         {
             "group": "Guides",
             "pages": [
                 "api-reference/subtitles",
-                "api-reference/errors"
+                "api-reference/errors",
+                "api-reference/usage-tips"
             ]
         },
         {
@@ -99,14 +113,8 @@
     "feedback": {
         "thumbsRating": true,
         "suggestEdit": true,
-        "raiseIssue": true
-    },
-    "metadata": {
-        "og:title": "Vyla API",
-        "og:description": "Stream and download any movie or TV show via TMDB ID — one API, eight providers, zero config.",
-        "twitter:card": "summary_large_image",
-        "twitter:title": "Vyla API",
-        "twitter:description": "Stream and download any movie or TV show via TMDB ID."
+        "raiseIssue": true,
+        "discord": "https://discord.gg/5eqRhKeywG"
     },
     "modeToggle": {
         "default": "dark",
@@ -114,7 +122,8 @@
     },
     "footer": {
         "socials": {
-            "github": "https://github.com/EndOverdosing/Vyla-Player-API"
+            "github": "https://github.com/EndOverdosing/Vyla-Player-API",
+            "discord": "https://discord.gg/5eqRhKeywG"
         }
     }
 }
