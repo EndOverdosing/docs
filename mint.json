@@ -19,14 +19,11 @@
             "to": "#111111"
         }
     },
+    "backgroundImage": "/background.png",
     "topbarLinks": [
         {
             "name": "GitHub",
             "url": "https://github.com/EndOverdosing/Vyla-Player-API"
-        },
-        {
-            "name": "Documentation",
-            "url": "/"
         },
         {
             "name": "Discord",
@@ -58,14 +55,14 @@
             "url": "https://github.com/EndOverdosing/Vyla-Player-API"
         },
         {
-            "name": "Live API",
-            "icon": "bolt",
-            "url": "https://vyla-api.pages.dev"
-        },
-        {
             "name": "Discord",
             "icon": "discord",
             "url": "https://discord.gg/5eqRhKeywG"
+        },
+        {
+            "name": "Live API",
+            "icon": "bolt",
+            "url": "https://vyla-api.pages.dev"
         }
     ],
     "navigation": [
@@ -73,16 +70,14 @@
             "group": "Getting Started",
             "pages": [
                 "introduction",
-                "api-reference/quickstart",
-                "api-reference/setup"
+                "api-reference/quickstart"
             ]
         },
         {
             "group": "Guides",
             "pages": [
                 "api-reference/subtitles",
-                "api-reference/errors",
-                "api-reference/usage-tips"
+                "api-reference/errors"
             ]
         },
         {
@@ -113,8 +108,7 @@
     "feedback": {
         "thumbsRating": true,
         "suggestEdit": true,
-        "raiseIssue": true,
-        "discord": "https://discord.gg/5eqRhKeywG"
+        "raiseIssue": true
     },
     "modeToggle": {
         "default": "dark",
@@ -123,7 +117,8 @@
     "footer": {
         "socials": {
             "github": "https://github.com/EndOverdosing/Vyla-Player-API",
-            "discord": "https://discord.gg/5eqRhKeywG"
+            "discord": "https://discord.gg/5eqRhKeywG",
+            "website": "https://vyla-api.pages.dev"
         }
     }
 }
