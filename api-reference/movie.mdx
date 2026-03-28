@@ -1,31 +1,22 @@
 ---
-title: Movie
-description: Scrape streaming sources for a movie by TMDB ID
+title: "GET /api/movie"
+api: "GET https://vyla-api.pages.dev/api/movie"
+description: "Scrape streaming sources for a movie by TMDB ID"
 ---
-
-<Note>
-  For enriched output with pre-built `download_url`, `ffmpeg_command`, and deeper deduplication across all providers in parallel, use [`/api/stream/movie`](/api-reference/stream-movie) instead.
-</Note>
-
-## Endpoint
-
-```
-GET /api/movie
-```
 
 Scrapes all providers for a movie and returns the raw source list. Sources are sorted by quality and filtered to English audio only. No deduplication beyond exact URL matches is applied at this layer.
 
----
+<Note>
+  For enriched output with pre-built `download_url`, `ffmpeg_command`, and deeper deduplication across all providers in parallel, use [`GET /api/stream/movie`](/api-reference/stream-movie) instead.
+</Note>
 
-## Parameters
+### Query Parameters
 
 <ParamField query="id" type="string" required>
   TMDB movie ID. Find it at [themoviedb.org](https://www.themoviedb.org) — it's the number in the URL, e.g. `themoviedb.org/movie/550` → `550`.
 </ParamField>
 
----
-
-## Example Request
+### Example Request
 
 <CodeGroup>
 ```bash cURL
@@ -42,21 +33,103 @@ console.log(data.sources); // array of stream sources
 ```python Python
 import requests
 
-data = requests.get("https://vyla-api.pages.dev/api/movie", params={"id": 550}).json()
+data = requests.get(
+  "https://vyla-api.pages.dev/api/movie",
+  params={"id": 550}
+).json()
 print(data["sources"])
+```
+
+```ts TypeScript
+const res = await fetch("https://vyla-api.pages.dev/api/movie?id=550");
+const data: MovieResponse = await res.json();
 ```
 </CodeGroup>
 
----
+### Response
 
-## Response
+<ResponseField name="success" type="boolean" required>
+  `true` if scraping succeeded, `false` otherwise.
+</ResponseField>
+
+<ResponseField name="results_found" type="number" required>
+  Total number of sources returned.
+</ResponseField>
+
+<ResponseField name="sources" type="Source[]" required>
+  Array of stream source objects, sorted by quality descending.
+
+  <Expandable title="Source object">
+    <ResponseField name="url" type="string">
+      Direct stream URL. Signed and may expire.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      `hls`, `mp4`, or `mkv`
+    </ResponseField>
+
+    <ResponseField name="quality" type="string">
+      e.g. `1080p`, `720p`, `HD`, `unknown`
+    </ResponseField>
+
+    <ResponseField name="provider" type="string">
+      Which provider this source came from.
+    </ResponseField>
+
+    <ResponseField name="audioTracks" type="AudioTrack[]">
+      Available audio tracks.
+
+      <Expandable title="AudioTrack object">
+        <ResponseField name="language" type="string">
+          ISO language code, e.g. `eng`
+        </ResponseField>
+        <ResponseField name="label" type="string">
+          Human-readable label, e.g. `English`
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="headers" type="object">
+      Required headers to forward when fetching this URL directly. **Must be included** or the CDN will return 403.
+
+      <Expandable title="Headers object">
+        <ResponseField name="Referer" type="string">
+          Required `Referer` header value.
+        </ResponseField>
+        <ResponseField name="Origin" type="string">
+          Required `Origin` header value.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="vlc_url" type="string">
+      Same as `url` on this endpoint — not proxied. Use `/api/stream/movie` to get a pre-built proxied `vlc_url`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="subtitles" type="Subtitle[]" required>
+  Array of subtitle objects. See [Subtitles](/api-reference/subtitles) for full details.
+
+  <Expandable title="Subtitle object">
+    <ResponseField name="url" type="string">
+      Direct URL to the subtitle file.
+    </ResponseField>
+    <ResponseField name="label" type="string">
+      Display name, e.g. `English`, `English [CC]`
+    </ResponseField>
+    <ResponseField name="format" type="string">
+      `vtt` or `srt`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
 
 <Tabs>
-  <Tab title="Success">
+  <Tab title="200 Success">
     ```json
     {
       "success": true,
-      "results_found": 8,
+      "results_found": 9,
       "sources": [
         {
           "url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1",
@@ -71,25 +144,11 @@ print(data["sources"])
             "Origin": "https://vixsrc.to"
           },
           "vlc_url": "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1"
-        },
-        {
-          "url": "https://bcdnxw.hakunaymatata.com/resource/abc123.mp4?sign=...&t=...",
-          "type": "mp4",
-          "quality": "720p",
-          "provider": "02MovieDownloader",
-          "audioTracks": [
-            { "language": "eng", "label": "English" }
-          ],
-          "headers": {
-            "Referer": "https://lok-lok.cc/",
-            "Origin": "https://lok-lok.cc/"
-          },
-          "vlc_url": "https://bcdnxw.hakunaymatata.com/resource/abc123.mp4?sign=...&t=..."
         }
       ],
       "subtitles": [
         {
-          "url": "https://vixsrc.to/playlist/170060?type=subtitle&rendition=eng&token=...&expires=...&edge=...",
+          "url": "https://vdrk.b-cdn.net/cache/movie/550/English.vtt",
           "label": "English",
           "format": "vtt"
         }
@@ -97,7 +156,7 @@ print(data["sources"])
     }
     ```
   </Tab>
-  <Tab title="Error">
+  <Tab title="400 Error">
     ```json
     {
       "success": false,
@@ -106,40 +165,6 @@ print(data["sources"])
     ```
   </Tab>
 </Tabs>
-
----
-
-## Source Object Fields
-
-<ResponseField name="url" type="string">
-  Direct stream URL.
-</ResponseField>
-
-<ResponseField name="type" type="string">
-  `hls`, `mp4`, or `mkv`
-</ResponseField>
-
-<ResponseField name="quality" type="string">
-  e.g. `1080p`, `720p`, `HD`, `unknown`
-</ResponseField>
-
-<ResponseField name="provider" type="string">
-  Which provider this source came from.
-</ResponseField>
-
-<ResponseField name="audioTracks" type="array">
-  Language and label of available audio tracks.
-</ResponseField>
-
-<ResponseField name="headers" type="object">
-  Required headers to forward when fetching this URL directly. **Must be included** or the CDN will return 403.
-</ResponseField>
-
-<ResponseField name="vlc_url" type="string">
-  Same as `url` on this endpoint — not proxied. Use `/api/stream/movie` to get a proxied `vlc_url`.
-</ResponseField>
-
----
 
 <Warning>
   The `headers` field on each source **must be forwarded** when fetching the stream directly. Pass them as base64 JSON to `/api/proxy` via the `headers` param, or use `/api/stream/movie` which handles header encoding in `vlc_url` automatically.

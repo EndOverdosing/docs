@@ -1,20 +1,14 @@
 ---
-title: Proxy
-description: Proxy any video URL through Cloudflare with CORS and header support
+title: "GET /api/proxy"
+api: "GET https://vyla-api.pages.dev/api/proxy"
+description: "Proxy any video URL through Cloudflare with CORS, header injection, and full m3u8 rewriting"
 ---
 
-## Endpoint
+Proxies any URL through Cloudflare Workers. Handles CORS, injects required `Referer` and `Origin` headers, and **rewrites m3u8 playlists** so all segment URLs are also proxied automatically — the entire HLS stream plays without CORS issues in any browser player.
 
-```
-GET /api/proxy
-HEAD /api/proxy
-```
+Also accepts `HEAD` requests for live source checking.
 
-Proxies any URL through Cloudflare Workers. Handles CORS, injects required `Referer` and `Origin` headers, and **rewrites m3u8 playlists** so all segment URLs are also proxied automatically — the entire HLS stream plays without CORS issues.
-
----
-
-## Parameters
+### Query Parameters
 
 <ParamField query="url" type="string" required>
   URL-encoded target URL to proxy.
@@ -22,11 +16,15 @@ Proxies any URL through Cloudflare Workers. Handles CORS, injects required `Refe
 
 <ParamField query="headers" type="string">
   Base64-encoded JSON object of additional request headers. Used to forward `Referer`, `Origin`, or any other header required by the CDN.
+
+  ```js
+  const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
+  const encoded = btoa(JSON.stringify(headers));
+  // &headers=eyJSZWZlcmVyIjoiaHR0cHM6...
+  ```
 </ParamField>
 
----
-
-## Example Requests
+### Example Request
 
 <CodeGroup>
 ```bash Plain video URL
@@ -44,27 +42,31 @@ const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
 const proxiedUrl = "https://vyla-api.pages.dev/api/proxy"
   + "?url=" + encodeURIComponent(streamUrl)
   + "&headers=" + encodeURIComponent(btoa(JSON.stringify(headers)));
+
+// Use directly with HLS.js
+const hls = new Hls();
+hls.loadSource(proxiedUrl);
+hls.attachMedia(video);
+```
+
+```python Python
+import base64, json, urllib.parse
+
+stream_url = "https://vixsrc.to/playlist/170060?token=..."
+headers = {"Referer": "https://vixsrc.to/", "Origin": "https://vixsrc.to"}
+
+encoded_headers = base64.b64encode(json.dumps(headers).encode()).decode()
+proxy_url = (
+  "https://vyla-api.pages.dev/api/proxy"
+  + "?url=" + urllib.parse.quote(stream_url)
+  + "&headers=" + urllib.parse.quote(encoded_headers)
+)
 ```
 </CodeGroup>
 
----
+### M3U8 Rewriting
 
-## Encoding Headers
-
-The `headers` parameter must be a base64-encoded JSON object:
-
-```javascript
-const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
-const encoded = btoa(JSON.stringify(headers));
-// encoded → "eyJSZWZlcmVyIjoiaHR0cHM6Ly92aXhzcmMudG8vIiwiT3JpZ2luIjoiaHR0cHM6Ly92aXhzcmMudG8ifQ=="
-// Pass as: &headers=eyJSZWZlcmVyIjoiaHR0cHM6...
-```
-
----
-
-## M3U8 Rewriting
-
-When the proxied URL returns an m3u8 playlist, **all segment and variant URLs inside it are automatically rewritten** to also go through `/api/proxy`. This ensures the entire HLS stream plays without CORS issues in a browser player.
+When the proxied URL returns an m3u8 playlist, **all segment and variant URLs inside it are automatically rewritten** to also go through `/api/proxy`. This ensures the entire HLS stream plays without CORS issues.
 
 ```
 Original segment:  https://cdn.example.com/seg001.ts
@@ -73,9 +75,7 @@ Rewritten segment: https://vyla-api.pages.dev/api/proxy?url=https%3A%2F%2Fcdn.ex
 
 If the original request included a `headers` param, it is preserved and forwarded for every rewritten segment URL automatically.
 
----
-
-## Automatic Header Injection
+### Automatic Header Injection
 
 For known providers, the proxy injects the correct headers even without the `headers` param:
 
@@ -84,9 +84,16 @@ For known providers, the proxy injects the correct headers even without the `hea
 | `tripplestream.online`, `hlmv-files` | `Referer: https://www.rgshows.ru`, `Origin: https://www.rgshows.ru` |
 | Any other URL | `Referer` and `Origin` set to the URL's own origin |
 
----
+### Encoding Headers
 
-## Security — SSRF Protection
+```js
+const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
+const encoded = btoa(JSON.stringify(headers));
+// eyJSZWZlcmVyIjoiaHR0cHM6Ly92aXhzcmMudG8vIiwiT3JpZ2luIjoiaHR0cHM6Ly92aXhzcmMudG8ifQ==
+// Pass as: &headers=eyJSZWZlcmVy...
+```
+
+### Security — SSRF Protection
 
 Private IP ranges and localhost are blocked:
 
@@ -99,17 +106,38 @@ Private IP ranges and localhost are blocked:
   </Accordion>
 </AccordionGroup>
 
----
+### Response
 
-## Error Responses
+On success, the proxy streams the upstream response body directly with appropriate CORS headers. No JSON envelope.
 
-```json
-{ "error": "Missing url parameter" }
-{ "error": "Invalid url" }
-{ "error": "Blocked host" }
-{ "error": "Fetch failed: <reason>" }
-{ "error": "Upstream error 403" }
-```
+On error, a JSON object is returned:
+
+<ResponseField name="error" type="string">
+  Description of the failure.
+</ResponseField>
+
+<Tabs>
+  <Tab title="Success">
+    The upstream response body is streamed directly. Content-Type, Content-Length, and other relevant headers are forwarded. CORS headers are added.
+  </Tab>
+  <Tab title="Error responses">
+    ```json
+    { "error": "Missing url parameter" }
+    ```
+    ```json
+    { "error": "Invalid url" }
+    ```
+    ```json
+    { "error": "Blocked host" }
+    ```
+    ```json
+    { "error": "Fetch failed: <reason>" }
+    ```
+    ```json
+    { "error": "Upstream error 403" }
+    ```
+  </Tab>
+</Tabs>
 
 <Note>
   The proxy is used internally by `/api/player` — all stream and subtitle URLs served to the player are already routed through `/api/proxy`.

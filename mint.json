@@ -97,12 +97,6 @@
                 "api-reference/stream-movie",
                 "api-reference/stream-tv"
             ]
-        },
-        {
-            "group": "Playground",
-            "pages": [
-                "api-reference/playground"
-            ]
         }
     ],
     "feedback": {

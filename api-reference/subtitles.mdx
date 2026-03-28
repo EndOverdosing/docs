@@ -33,14 +33,6 @@ Every `/api/movie`, `/api/tv`, `/api/stream/movie`, and `/api/stream/tv` respons
 
 Subtitles are collected from multiple providers and merged:
 
-| Provider | Subtitle source |
-|----------|-----------------|
-| VixSrc | Signed `.vtt` tracks embedded in the playlist manifest |
-| VidRock | CDN-hosted `.vtt` files at `vdrk.b-cdn.net` |
-| 02Embed | Proxied VidRock/VixSrc subtitles via madvid3.xyz |
-| 02MovieDownloader | CloudFront-signed `.srt` files from hakunaymatata CDN |
-| VidZee | `.vtt` tracks returned alongside each server response |
-
 ---
 
 ## Filtering & Deduplication

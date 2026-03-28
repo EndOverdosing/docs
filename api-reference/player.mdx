@@ -1,19 +1,12 @@
 ---
-title: Player
-description: Embeddable fullscreen HTML video player with auto-fallback and subtitle injection
+title: "GET /api/player"
+api: "GET https://vyla-api.pages.dev/api/player"
+description: "Embeddable fullscreen HTML video player with HLS.js, auto-fallback, and subtitle injection"
 ---
-
-## Endpoint
-
-```
-GET /api/player
-```
 
 Returns a self-contained HTML page with a fullscreen video player. All sources are fetched, proxied, and played automatically with HLS.js. If one source fails or stalls, the player falls back to the next source. Subtitles are injected automatically.
 
----
-
-## Parameters
+### Query Parameters
 
 <ParamField query="id" type="string" required>
   TMDB movie or series ID.
@@ -23,11 +16,11 @@ Returns a self-contained HTML page with a fullscreen video player. All sources a
   `movie` or `tv`
 </ParamField>
 
-<ParamField query="season" type="string" default="1">
+<ParamField query="season" type="number" default="1">
   Season number — TV only.
 </ParamField>
 
-<ParamField query="episode" type="string" default="1">
+<ParamField query="episode" type="number" default="1">
   Episode number — TV only.
 </ParamField>
 
@@ -35,9 +28,7 @@ Returns a self-contained HTML page with a fullscreen video player. All sources a
   Set to `1` to skip live HEAD checks and use all sources directly. Faster startup, but some dead sources may be tried before a working one is found.
 </ParamField>
 
----
-
-## Embed as an iframe
+### Embed as an iframe
 
 <Tabs>
   <Tab title="Movie">
@@ -62,9 +53,8 @@ Returns a self-contained HTML page with a fullscreen video player. All sources a
     ></iframe>
     ```
   </Tab>
-  <Tab title="Skip live checks">
+  <Tab title="Skip live checks (faster)">
     ```html
-    <!-- Faster startup — skips HEAD verification -->
     <iframe
       src="https://vyla-api.pages.dev/api/player?type=movie&id=550&nocheck=1"
       width="100%"
@@ -76,9 +66,7 @@ Returns a self-contained HTML page with a fullscreen video player. All sources a
   </Tab>
 </Tabs>
 
----
-
-## How It Works
+### How It Works
 
 <Steps>
   <Step title="Scrape all providers">
@@ -101,9 +89,7 @@ Returns a self-contained HTML page with a fullscreen video player. All sources a
   </Step>
 </Steps>
 
----
-
-## Player Events & Behavior
+### Player Events & Behavior
 
 | Event | Action |
 |-------|--------|
@@ -113,19 +99,29 @@ Returns a self-contained HTML page with a fullscreen video player. All sources a
 | `waiting` | Starts the 8-second stall timer if playback hasn't begun |
 | HLS fatal error | Destroys the HLS instance and tries the next source |
 
----
+### Response
 
-## Error Responses
+The endpoint returns a **full HTML document**, not JSON. It should be embedded via `<iframe>` or opened directly in a browser.
 
-The player returns HTML error pages rather than JSON:
+On error, an HTML error page is returned:
 
-```html
-<h2>Missing ?id=</h2>
-```
-
-```html
-<h2>No sources found.</h2>
-```
+<Tabs>
+  <Tab title="Success">
+    A self-contained HTML page with the embedded video player. Intended for iframe embedding.
+  </Tab>
+  <Tab title="400 — Missing ID">
+    ```html
+    <h2>Missing ?id=</h2>
+    ```
+    HTTP 400. The `id` query parameter was not provided.
+  </Tab>
+  <Tab title="404 — No sources">
+    ```html
+    <h2>No sources found.</h2>
+    ```
+    HTTP 404. Scraping succeeded but no providers returned sources for the given ID.
+  </Tab>
+</Tabs>
 
 <Note>
   The player uses **HLS.js v1.5.13**. On Safari, native HLS is used instead when HLS.js is not supported.

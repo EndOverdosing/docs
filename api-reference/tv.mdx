@@ -1,39 +1,30 @@
 ---
-title: TV Show
-description: Scrape streaming sources for a TV episode by TMDB ID
+title: "GET /api/tv"
+api: "GET https://vyla-api.pages.dev/api/tv"
+description: "Scrape streaming sources for a TV episode by TMDB series ID"
 ---
-
-<Note>
-  For enriched output with pre-built `download_url`, `ffmpeg_command`, and deeper deduplication across all providers in parallel, use [`/api/stream/tv`](/api-reference/stream-tv) instead.
-</Note>
-
-## Endpoint
-
-```
-GET /api/tv
-```
 
 Scrapes all providers for a TV episode and returns the raw source list. Sources are sorted by quality and filtered to English audio only. No deduplication beyond exact URL matches is applied at this layer.
 
----
+<Note>
+  For enriched output with pre-built `download_url`, `ffmpeg_command`, and deeper deduplication across all providers in parallel, use [`GET /api/stream/tv`](/api-reference/stream-tv) instead.
+</Note>
 
-## Parameters
+### Query Parameters
 
 <ParamField query="id" type="string" required>
   TMDB **series** ID — not episode ID. Find it at [themoviedb.org](https://www.themoviedb.org), e.g. `themoviedb.org/tv/456` → `456`.
 </ParamField>
 
-<ParamField query="season" type="string" default="1">
+<ParamField query="season" type="number" default="1">
   Season number.
 </ParamField>
 
-<ParamField query="episode" type="string" default="1">
+<ParamField query="episode" type="number" default="1">
   Episode number.
 </ParamField>
 
----
-
-## Example Requests
+### Example Request
 
 <CodeGroup>
 ```bash Season 1, Episode 1 (defaults)
@@ -49,6 +40,7 @@ const res = await fetch(
   "https://vyla-api.pages.dev/api/tv?id=456&season=2&episode=3"
 );
 const data = await res.json();
+console.log(data.sources);
 ```
 
 ```python Python
@@ -59,14 +51,95 @@ data = requests.get(
   params={"id": 456, "season": 2, "episode": 3}
 ).json()
 ```
+
+```ts TypeScript
+const res = await fetch(
+  "https://vyla-api.pages.dev/api/tv?id=456&season=2&episode=3"
+);
+const data: TVResponse = await res.json();
+```
 </CodeGroup>
 
----
+### Response
 
-## Response
+<ResponseField name="success" type="boolean" required>
+  `true` if scraping succeeded, `false` otherwise.
+</ResponseField>
+
+<ResponseField name="results_found" type="number" required>
+  Total number of sources returned.
+</ResponseField>
+
+<ResponseField name="sources" type="Source[]" required>
+  Array of stream source objects, sorted by quality descending.
+
+  <Expandable title="Source object">
+    <ResponseField name="url" type="string">
+      Direct stream URL. Signed and may expire.
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      `hls`, `mp4`, or `mkv`
+    </ResponseField>
+
+    <ResponseField name="quality" type="string">
+      e.g. `1080p`, `720p`, `HD`, `unknown`
+    </ResponseField>
+
+    <ResponseField name="provider" type="string">
+      Which provider this source came from.
+    </ResponseField>
+
+    <ResponseField name="audioTracks" type="AudioTrack[]">
+      Available audio tracks.
+
+      <Expandable title="AudioTrack object">
+        <ResponseField name="language" type="string">
+          ISO language code, e.g. `eng`
+        </ResponseField>
+        <ResponseField name="label" type="string">
+          Human-readable label, e.g. `English`
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="headers" type="object">
+      Required headers to forward when fetching this URL directly.
+
+      <Expandable title="Headers object">
+        <ResponseField name="Referer" type="string">
+          Required `Referer` header value.
+        </ResponseField>
+        <ResponseField name="Origin" type="string">
+          Required `Origin` header value.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="vlc_url" type="string">
+      Same as `url` on this endpoint — not proxied. Use `/api/stream/tv` for a pre-built proxied `vlc_url`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="subtitles" type="Subtitle[]" required>
+  Array of subtitle objects.
+
+  <Expandable title="Subtitle object">
+    <ResponseField name="url" type="string">
+      Direct URL to the subtitle file.
+    </ResponseField>
+    <ResponseField name="label" type="string">
+      Display name, e.g. `English`, `English [CC]`
+    </ResponseField>
+    <ResponseField name="format" type="string">
+      `vtt` or `srt`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
 
 <Tabs>
-  <Tab title="Success">
+  <Tab title="200 Success">
     ```json
     {
       "success": true,
@@ -116,7 +189,7 @@ data = requests.get(
     }
     ```
   </Tab>
-  <Tab title="Error">
+  <Tab title="400 Error">
     ```json
     {
       "success": false,
@@ -125,40 +198,6 @@ data = requests.get(
     ```
   </Tab>
 </Tabs>
-
----
-
-## Source Object Fields
-
-<ResponseField name="url" type="string">
-  Direct stream URL.
-</ResponseField>
-
-<ResponseField name="type" type="string">
-  `hls`, `mp4`, or `mkv`
-</ResponseField>
-
-<ResponseField name="quality" type="string">
-  e.g. `1080p`, `720p`, `HD`, `unknown`
-</ResponseField>
-
-<ResponseField name="provider" type="string">
-  Which provider this source came from.
-</ResponseField>
-
-<ResponseField name="audioTracks" type="array">
-  Language and label of available audio tracks.
-</ResponseField>
-
-<ResponseField name="headers" type="object">
-  Required headers to forward when fetching this URL directly.
-</ResponseField>
-
-<ResponseField name="vlc_url" type="string">
-  Same as `url` on this endpoint — not proxied.
-</ResponseField>
-
----
 
 <Warning>
   The `headers` field on each source **must be forwarded** when fetching the stream directly. Use `/api/stream/tv` to get pre-built `vlc_url` (proxied), `download_url`, and `ffmpeg_command` with headers already encoded.

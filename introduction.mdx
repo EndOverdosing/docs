@@ -102,17 +102,6 @@ curl https://vyla-api.pages.dev/api/download/movie?id=27205
 
 Sources are scraped concurrently from all 8 providers, filtered to English audio, and sorted by quality before being returned.
 
-| Provider | Type | Notes |
-|----------|------|-------|
-| 02MovieDownloader | `mp4` / `mkv` | Token-verified direct downloads |
-| VixSrc | `hls` | Signed token + expiry, playlist URL format |
-| VidSrc | `hls` | Multi-CDN mirror with domain substitution |
-| Uembed | `hls` | Multi-API with m3u8 variant resolution |
-| VidRock | `hls` / `mp4` | AES-CBC encrypted item IDs |
-| RgShows | `mp4` / `hls` | Direct CDN with tripplestream headers |
-| VidZee | `hls` | AES-CBC encrypted stream URLs, 14 servers |
-| 02Embed | `hls` | Unwrapped from madvid3/02pcembed proxy chain |
-
 ---
 
 ## Quality Priority
