@@ -1,103 +1,173 @@
 ---
-title: "GET /api/movie"
+title: Movie Sources
 api: "GET https://vyla-api.pages.dev/api/movie"
-description: "All working streaming sources and subtitle tracks for a movie, fetched from every provider in parallel"
+description: Fetch all working HLS sources, subtitle tracks, and TMDB metadata for a movie.
 ---
 
-Fetches all 6 providers concurrently for a movie, verifies each result with a live stream check, and returns only the sources that are actually working. Subtitle tracks are fetched and included automatically. Every stream URL in the response is already proxied and CORS-safe.
+Queries all six providers in parallel, verifies each candidate URL live, and returns only the streams that are actually playable. Subtitles and TMDB metadata are fetched concurrently and bundled into the same response.
 
-### Query Parameters
+Every `url` in the response is already routed through the Cloudflare HLS proxy with M3U8 segment paths rewritten — pass it directly to `hls.loadSource()`.
+
+---
+
+## Query Parameters
 
 <ParamField query="id" type="string" required>
-  TMDB movie ID. Find it at [themoviedb.org](https://www.themoviedb.org) — it's the number in the URL, e.g. `themoviedb.org/movie/550` → `550`.
+  TMDB movie ID. Find it on [themoviedb.org](https://www.themoviedb.org) — it's the number in the URL.
+
+  **Example:** `themoviedb.org/movie/550` → `id=550`
 </ParamField>
 
-### Example Request
+---
+
+## Request
 
 <CodeGroup>
 ```bash cURL
-curl https://vyla-api.pages.dev/api/movie?id=550
+curl "https://vyla-api.pages.dev/api/movie?id=550"
 ```
 
-```js JavaScript
-const res = await fetch("https://vyla-api.pages.dev/api/movie?id=550");
+```javascript JavaScript
+const res  = await fetch('https://vyla-api.pages.dev/api/movie?id=550');
 const data = await res.json();
 
-console.log(data.sources);   // verified, proxied stream sources
-console.log(data.subtitles); // VTT subtitle tracks
+const sources   = data.sources;   // verified HLS sources
+const subtitles = data.subtitles; // VTT subtitle tracks
+const meta      = data.meta;      // TMDB metadata
+```
+
+```typescript TypeScript
+interface Source {
+  source: string;
+  label: string;
+  url: string;
+}
+
+interface Subtitle {
+  label: string;
+  file: string;
+}
+
+interface MovieResponse {
+  sources: Source[];
+  subtitles: Subtitle[];
+  meta: Record<string, unknown> | null;
+}
+
+const data: MovieResponse = await fetch(
+  'https://vyla-api.pages.dev/api/movie?id=550'
+).then(r => r.json());
 ```
 
 ```python Python
 import requests
 
 data = requests.get(
-  "https://vyla-api.pages.dev/api/movie",
-  params={"id": 550}
+  'https://vyla-api.pages.dev/api/movie',
+  params={'id': 550}
 ).json()
-print(data["sources"])
-print(data["subtitles"])
+
+for source in data['sources']:
+    print(f"{source['label']}: https://vyla-api.pages.dev{source['url']}")
 ```
 
-```ts TypeScript
-const res = await fetch("https://vyla-api.pages.dev/api/movie?id=550");
-const data = await res.json();
-const sources = data.sources;
-const subtitles = data.subtitles;
+```go Go
+package main
+
+import (
+  "encoding/json"
+  "fmt"
+  "net/http"
+)
+
+type Source struct {
+  Source string `json:"source"`
+  Label  string `json:"label"`
+  URL    string `json:"url"`
+}
+
+type MovieResponse struct {
+  Sources   []Source               `json:"sources"`
+  Subtitles []map[string]string    `json:"subtitles"`
+  Meta      map[string]interface{} `json:"meta"`
+}
+
+func main() {
+  res, _ := http.Get("https://vyla-api.pages.dev/api/movie?id=550")
+  defer res.Body.Close()
+
+  var data MovieResponse
+  json.NewDecoder(res.Body).Decode(&data)
+
+  for _, s := range data.Sources {
+    fmt.Printf("%s: https://vyla-api.pages.dev%s\n", s.Label, s.URL)
+  }
+}
 ```
 </CodeGroup>
 
-### Response
+---
+
+## Response
 
 <ResponseField name="sources" type="Source[]" required>
-  Array of verified, proxied stream sources. Only working sources are included.
+  Array of verified, proxied HLS sources. Only streams that passed the live `#EXTM3U` verification check are included. Array may be empty if all providers fail.
 
   <Expandable title="Source object">
     <ResponseField name="source" type="string">
-      Internal provider key, e.g. `vixsrc`, `vidzee`.
+      Internal provider key, e.g. `source1`, `source2`. Matches the keys in the [providers table](/introduction#providers).
     </ResponseField>
-
     <ResponseField name="label" type="string">
-      Human-readable provider name, e.g. `vixsrc`, `VidZee`.
+      Human-readable provider name, e.g. `Source1`, `Source2`.
     </ResponseField>
-
     <ResponseField name="url" type="string">
-      Proxied stream URL — routed through `/api` with CORS and full m3u8 segment rewriting applied. Pass directly to HLS.js or any player.
+      Proxied HLS stream URL. All M3U8 segment and encryption key URIs are rewritten to route through the same Cloudflare origin. Pass directly to `hls.loadSource()`.
+
+      **Important:** Prepend `https://vyla-api.pages.dev` if your player requires an absolute URL.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
 <ResponseField name="subtitles" type="Subtitle[]" required>
-  Array of available subtitle tracks for the movie. Empty array if none found.
+  Available subtitle tracks. Empty array `[]` if none are found for this title.
 
   <Expandable title="Subtitle object">
     <ResponseField name="label" type="string">
-      Language name of the subtitle track, e.g. `English`, `Spanish`.
+      Language name, e.g. `English`, `Spanish`, `Arabic`, `French`.
     </ResponseField>
-
     <ResponseField name="file" type="string">
-      Direct URL to the VTT subtitle file.
+      Direct URL to a WebVTT (`.vtt`) file. Use as `<track src="...">` or pass to your player's subtitle API.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
 <ResponseField name="meta" type="object | null">
-  TMDB metadata for the movie. `null` if no `TMDB_API_KEY` is configured.
+  TMDB movie metadata. `null` if no `TMDB_API_KEY` is configured on the server. When present, this is the raw TMDB API response for the movie.
 </ResponseField>
 
+---
+
+## Responses
+
 <Tabs>
-  <Tab title="200 Success">
+  <Tab title="200 — Success">
     ```json
     {
       "sources": [
         {
-          "source": "vixsrc",
-          "label": "vixsrc",
-          "url": "/api?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F170060%3Ftoken%3D...&vl=1"
+          "source": "source1",
+          "label": "Source1",
+          "url": "/api?url=https%3A%2F%2Fplayer.source1.com%2F...&s1=1"
         },
         {
-          "source": "vidzee",
-          "label": "VidZee",
-          "url": "/api?url=https%3A%2F%2F...&vz=1"
+          "source": "source2",
+          "label": "Source2",
+          "url": "/api?url=https%3A%2F%2Fsource2.com%2F...&s2=1"
+        },
+        {
+          "source": "source5",
+          "label": "Source5",
+          "url": "/api?url=https%3A%2F%2Fplayer.source5.com%2F...&s5=1"
         }
       ],
       "subtitles": [
@@ -113,23 +183,52 @@ const subtitles = data.subtitles;
       "meta": {
         "id": 550,
         "title": "Fight Club",
-        "release_date": "1999-10-15"
+        "release_date": "1999-10-15",
+        "runtime": 139,
+        "vote_average": 8.438
       }
     }
     ```
   </Tab>
-  <Tab title="400 Error">
+  <Tab title="400 — Missing ID">
     ```json
     { "error": "missing id" }
     ```
   </Tab>
-  <Tab title="502 Error">
+  <Tab title="502 — No Sources">
+    All providers failed verification. Try again, or check `/api/health` to see which providers are up.
+
     ```json
     { "error": "no working sources found" }
     ```
   </Tab>
+  <Tab title="500 — Server Error">
+    ```json
+    { "error": "<error message>" }
+    ```
+  </Tab>
 </Tabs>
 
-<Note>
-  Response time scales with the slowest provider that returns a working source. Typical response time is 3–8 seconds.
-</Note>
+---
+
+## Notes
+
+<AccordionGroup>
+  <Accordion title="Response time">
+    Typical response time is **3–8 seconds**. The request completes once all providers have responded (or timed out) and Source1 has a 15s timeout; Source3 can take up to 25s — these are the usual bottlenecks on slow responses.
+  </Accordion>
+  <Accordion title="Result ordering">
+    Sources are returned in the order they passed verification, which correlates with provider speed. The first source is generally the fastest-responding provider.
+  </Accordion>
+  <Accordion title="Empty sources array vs 502">
+    A `502` with `"no working sources found"` means all providers returned nothing. A `200` with an empty `sources` array should not occur — this is handled server-side.
+  </Accordion>
+  <Accordion title="Using the URL field">
+    The `url` field is a relative path beginning with `/api?url=...`. Prepend the base URL when constructing absolute URLs for your player:
+
+    ```javascript
+    const streamUrl = 'https://vyla-api.pages.dev' + source.url;
+    hls.loadSource(streamUrl);
+    ```
+  </Accordion>
+</AccordionGroup>

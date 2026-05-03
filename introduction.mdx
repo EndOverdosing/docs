@@ -1,26 +1,43 @@
 ---
 title: Introduction
-description: Stream any movie or TV show via TMDB ID — one API, six providers, subtitles included.
+description: One API. Six providers. Verified HLS streams for any movie or TV show — proxied, CORS-safe, and ready to play.
 ---
 
-<img src="/images/rounded-banner.png" alt="Vyla API" />
+<img
+  className="block dark:hidden rounded-xl"
+  src="/images/banner.png"
+  alt="Vyla API"
+/>
+<img
+  className="hidden dark:block rounded-xl"
+  src="/images/banner.png"
+  alt="Vyla API"
+/>
 
 ## What is Vyla API?
 
-Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 6 providers concurrently and serves them through a unified JSON interface. Pass any TMDB ID and get back every working source — already verified and proxied — along with multi-language subtitle tracks.
+Vyla API is a **Cloudflare Workers** edge API that fans out to six streaming providers simultaneously, verifies every stream live, and returns only the URLs that actually work — proxied through Cloudflare, CORS-safe, and ready to drop into any HLS player.
+
+Pass a TMDB ID. Get back working streams, multi-language subtitles, and TMDB metadata — in a single request.
 
 <CardGroup cols={2}>
-  <Card title="Stream URLs">
-    All working HLS sources from every provider — verified live before being returned
+  <Card title="Multi-Provider Fanout" icon="bolt">
+    All six providers are queried in parallel with per-source jitter, retries, and timeouts. Dead sources are silently dropped.
   </Card>
-  <Card title="CORS Proxy">
-    Every URL is routed through Cloudflare with full m3u8 segment rewriting — no CORS issues in any browser player
+  <Card title="Live Stream Verification" icon="circle-check">
+    Every candidate URL is fetched and checked for a valid `#EXTM3U` header before it appears in the response. No dead links.
   </Card>
-  <Card title="Subtitles">
-    Multi-language VTT subtitle tracks included in every movie and TV response, or fetched standalone
+  <Card title="Built-in HLS Proxy" icon="shield">
+    Stream URLs are wrapped in a Cloudflare-hosted proxy that rewrites M3U8 segment and key paths. CORS issues in the browser are gone by design.
   </Card>
-  <Card title="Health Check">
-    Per-provider health endpoint shows which sources are up and their response times
+  <Card title="Subtitles Included" icon="subtitles">
+    VTT subtitle tracks in multiple languages are automatically bundled into every movie and TV response, or available standalone.
+  </Card>
+  <Card title="Download Links" icon="download">
+    Direct download links for movies and TV episodes via `source1` provider, with quality labels and file sizes.
+  </Card>
+  <Card title="Health Monitoring" icon="heart-pulse">
+    A dedicated health endpoint probes every provider in real time and reports per-source latency and status.
   </Card>
 </CardGroup>
 
@@ -32,80 +49,82 @@ Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 6 pro
 https://vyla-api.pages.dev
 ```
 
-All endpoints return `Access-Control-Allow-Origin: *` — no credentials needed.
+All endpoints return `Access-Control-Allow-Origin: *`. No authentication required for public use.
 
 ---
 
-## Quick Start
+## How It Works
 
-<CodeGroup>
-```bash Movie Sources
-curl https://vyla-api.pages.dev/api/movie?id=550
-```
-
-```bash TV Episode Sources
-curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
-```
-
-```bash Movie Subtitles
-curl https://vyla-api.pages.dev/api/subtitles/movie/550
-```
-
-```bash TV Subtitles
-curl https://vyla-api.pages.dev/api/subtitles/tv/76479/1/1
-```
-
-```bash Health Check
-curl https://vyla-api.pages.dev/api/health
-```
-</CodeGroup>
-
-<Tip>
-  **New here?** Jump to the [Quickstart](/api-reference/quickstart) for a guided walkthrough.
-</Tip>
+<Steps>
+  <Step title="Request arrives">
+    Your app sends a request with a TMDB ID (and optionally season + episode for TV).
+  </Step>
+  <Step title="Parallel provider fanout">
+    All six providers are queried simultaneously. Each source applies random jitter to stagger requests, then retries on failure up to its configured limit.
+  </Step>
+  <Step title="Live verification">
+    Every URL returned by a provider is fetched and checked for a valid HLS playlist. Anything that doesn't respond with `#EXTM3U` is dropped.
+  </Step>
+  <Step title="Proxy wrapping">
+    Surviving URLs are wrapped in the Cloudflare proxy path. M3U8 segment and encryption key URIs are rewritten so all HLS traffic flows through the same origin.
+  </Step>
+  <Step title="Response returned">
+    Working sources, subtitle tracks, and TMDB metadata are returned as a single JSON response — ready to feed straight into HLS.js.
+  </Step>
+</Steps>
 
 ---
 
 ## Endpoint Overview
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/movie` | All working sources + subtitles for a movie |
-| `GET /api/tv` | All working sources + subtitles for a TV episode |
-| `GET /api/subtitles/movie/<id>` | Subtitle tracks for a movie |
-| `GET /api/subtitles/tv/<id>/<season>/<episode>` | Subtitle tracks for a TV episode |
-| `GET /api/health` | Per-provider health check |
-| `GET /api/test/<id>?source=<key>` | Test a single provider |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/movie` | `GET` | All working sources + subtitles + metadata for a movie |
+| `/api/tv` | `GET` | All working sources + subtitles + metadata for a TV episode |
+| `/api/subtitles/movie/<id>` | `GET` | Subtitle tracks for a movie |
+| `/api/subtitles/tv/<id>/<s>/<e>` | `GET` | Subtitle tracks for a TV episode |
+| `/api/downloads/movie/<id>` | `GET` | Download links for a movie |
+| `/api/downloads/tv/<id>/<s>/<e>` | `GET` | Download links for a TV episode |
+| `/api/health` | `GET` | Per-provider health check with latency |
+| `/api/test/<id>` | `GET` | Debug a single provider in isolation |
 
 ---
 
 ## Providers
 
-Sources are fetched from all 6 providers concurrently. Each result is verified with a live stream check — only working sources are returned.
+Six providers are queried on every request. All are fetched in parallel.
 
-| Key | Label |
-|-----|-------|
-| `vixsrc` | vixsrc |
-| `vidzee` | VidZee |
-| `vidnest` | VidNest |
-| `vidsrc` | VidSrc |
-| `vidrock` | VidRock |
-| `videasy` | Videasy |
+| Key | Label | Proxy Param | Timeout | Retries |
+|-----|-------|-------------|---------|---------|
+| `source1` | Source1 | `s1` | 15s | 3 |
+| `source2` | Source2 | `s2` | 20s | 3 |
+| `source3` | Source3 | `s3` | 25s | 2 |
+| `source4` | Source4 | `s4` | 20s | 3 |
+| `source5` | Source5 | `s5` | 20s | 3 |
+| `source6` | Source6 | `s6` | 15s | 2 |
+
+<Tip>
+  Check which providers are currently live before building: [`/api/health`](https://vyla-api.pages.dev/api/health)
+</Tip>
 
 ---
 
-## Source Object Reference
+## Data Models
+
+### Source Object
+
+Returned inside `sources[]` on movie and TV responses.
 
 ```json
 {
-  "source": "vixsrc",
-  "label": "vixsrc",
-  "url": "/api?url=<encoded_stream_url>&vl=1"
+  "source": "source1",
+  "label": "Source1",
+  "url": "/api?url=https%3A%2F%2F...&s1=1"
 }
 ```
 
 <ResponseField name="source" type="string">
-  Internal provider key.
+  Internal provider key. Matches the keys in the providers table above.
 </ResponseField>
 
 <ResponseField name="label" type="string">
@@ -113,12 +132,14 @@ Sources are fetched from all 6 providers concurrently. Each result is verified w
 </ResponseField>
 
 <ResponseField name="url" type="string">
-  Proxied stream URL — routed through `/api` with CORS and m3u8 rewriting applied. Pass directly to HLS.js or any player.
+  Proxied, CORS-safe HLS stream URL. Pass directly to `hls.loadSource()`. All M3U8 segment and key URIs are pre-rewritten to flow through the proxy.
 </ResponseField>
 
 ---
 
-## Subtitle Object Reference
+### Subtitle Object
+
+Returned inside `subtitles[]` on movie and TV responses, and as the top-level array on subtitle endpoints.
 
 ```json
 {
@@ -128,21 +149,58 @@ Sources are fetched from all 6 providers concurrently. Each result is verified w
 ```
 
 <ResponseField name="label" type="string">
-  Language name of the subtitle track.
+  Language name of the subtitle track, e.g. `English`, `Spanish`, `Arabic`.
 </ResponseField>
 
 <ResponseField name="file" type="string">
-  Direct URL to the VTT subtitle file.
+  Direct URL to a WebVTT (`.vtt`) subtitle file. Use as a `<track>` element `src`, or pass to any player's subtitle API.
 </ResponseField>
 
 ---
 
-## CORS Headers
+### Download Object
+
+Returned inside `downloads[]` on download endpoints.
+
+```json
+{
+  "url": "https://source1.com/download/...",
+  "quality": "1080p",
+  "size": "2.14 GB",
+  "format": "MP4"
+}
+```
+
+<ResponseField name="url" type="string">
+  Direct download URL.
+</ResponseField>
+
+<ResponseField name="quality" type="string">
+  Quality label, e.g. `1080p`, `720p`, `480p`.
+</ResponseField>
+
+<ResponseField name="size" type="string | null">
+  Human-readable file size, e.g. `2.14 GB`. `null` if unavailable.
+</ResponseField>
+
+<ResponseField name="format" type="string">
+  Container format, e.g. `MP4`, `MKV`.
+</ResponseField>
+
+---
+
+## CORS & Headers
 
 Every endpoint returns:
 
-```
+```http
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, HEAD, OPTIONS
-Access-Control-Allow-Headers: *
+Content-Type: application/json
 ```
+
+Preflight `OPTIONS` requests return `204 No Content` immediately.
+
+<Note>
+  The `Access-Control-Allow-Origin: *` header applies to the JSON API responses. The proxied HLS stream URLs also pass through Cloudflare with CORS headers rewritten — your player can load them directly from any origin.
+</Note>

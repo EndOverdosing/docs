@@ -31,8 +31,9 @@
         }
     ],
     "topbarCtaButton": {
+        "name": "Live API",
         "url": "https://vyla-api.pages.dev",
-        "type": "github"
+        "type": "link"
     },
     "tabs": [
         {
@@ -44,8 +45,8 @@
             "url": "/api-reference"
         },
         {
-            "name": "Playground",
-            "url": "/api-reference/playground"
+            "name": "Guides",
+            "url": "/guides"
         }
     ],
     "anchors": [
@@ -63,6 +64,11 @@
             "name": "Live API",
             "icon": "bolt",
             "url": "https://vyla-api.pages.dev"
+        },
+        {
+            "name": "Health Status",
+            "icon": "heart-pulse",
+            "url": "https://vyla-api.pages.dev/api/health"
         }
     ],
     "navigation": [
@@ -74,9 +80,14 @@
             ]
         },
         {
-            "group": "Core",
+            "group": "Concepts",
             "pages": [
-                "api-reference/health",
+                "concepts/providers"
+            ]
+        },
+        {
+            "group": "Stream Sources",
+            "pages": [
                 "api-reference/movie",
                 "api-reference/tv"
             ]
@@ -89,9 +100,24 @@
             ]
         },
         {
-            "group": "Testing",
+            "group": "Downloads",
             "pages": [
+                "api-reference/downloads"
+            ]
+        },
+        {
+            "group": "Utilities",
+            "pages": [
+                "api-reference/health",
                 "api-reference/test"
+            ]
+        },
+        {
+            "group": "Guides",
+            "pages": [
+                "guides/hlsjs",
+                "guides/react",
+                "guides/error-handling"
             ]
         }
     ],
@@ -109,6 +135,12 @@
             "github": "https://github.com/EndOverdosing/Vyla-Player-API",
             "discord": "https://discord.gg/5eqRhKeywG",
             "website": "https://vyla-api.pages.dev"
+        }
+    },
+    "api": {
+        "baseUrl": "https://vyla-api.pages.dev",
+        "playground": {
+            "mode": "show"
         }
     }
 }

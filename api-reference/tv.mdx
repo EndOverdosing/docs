@@ -1,112 +1,152 @@
 ---
-title: "GET /api/tv"
+title: TV Episode Sources
 api: "GET https://vyla-api.pages.dev/api/tv"
-description: "All working streaming sources and subtitle tracks for a TV episode, fetched from every provider in parallel"
+description: Fetch all working HLS sources, subtitle tracks, and TMDB metadata for a TV episode.
 ---
 
-Fetches all 6 providers concurrently for a TV episode, verifies each result with a live stream check, and returns only the sources that are actually working. Subtitle tracks are fetched and included automatically. Every stream URL in the response is already proxied and CORS-safe.
+Identical to the movie endpoint in behavior, but takes a series ID plus season and episode numbers. All six providers are queried in parallel, each candidate URL is verified live, and only streams that return a valid HLS playlist are included in the response.
 
-### Query Parameters
+---
+
+## Query Parameters
 
 <ParamField query="id" type="string" required>
-  TMDB **series** ID — not episode ID. Find it at [themoviedb.org](https://www.themoviedb.org), e.g. `themoviedb.org/tv/1396` → `1396`.
+  TMDB **series** ID — not an episode ID. Find it on [themoviedb.org](https://www.themoviedb.org) in the URL of the show's main page.
+
+  **Example:** `themoviedb.org/tv/1396` → `id=1396` (Breaking Bad)
 </ParamField>
 
 <ParamField query="season" type="number" required>
-  Season number.
+  Season number. Use `1` for the first season.
 </ParamField>
 
 <ParamField query="episode" type="number" required>
-  Episode number.
+  Episode number within the season. Use `1` for the first episode.
 </ParamField>
 
-### Example Request
+---
+
+## Request
 
 <CodeGroup>
 ```bash cURL
 curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
 ```
 
-```js JavaScript
-const res = await fetch(
-  "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
+```javascript JavaScript
+const res  = await fetch(
+  'https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1'
 );
 const data = await res.json();
-console.log(data.sources);
-console.log(data.subtitles);
+
+const sources   = data.sources;
+const subtitles = data.subtitles;
+const meta      = data.meta; // episode-level TMDB metadata
+```
+
+```typescript TypeScript
+interface Source {
+  source: string;
+  label: string;
+  url: string;
+}
+
+interface Subtitle {
+  label: string;
+  file: string;
+}
+
+interface TvResponse {
+  sources: Source[];
+  subtitles: Subtitle[];
+  meta: Record<string, unknown> | null;
+}
+
+const data: TvResponse = await fetch(
+  'https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1'
+).then(r => r.json());
 ```
 
 ```python Python
 import requests
 
 data = requests.get(
-  "https://vyla-api.pages.dev/api/tv",
-  params={"id": 1396, "season": 1, "episode": 1}
+  'https://vyla-api.pages.dev/api/tv',
+  params={'id': 1396, 'season': 1, 'episode': 1}
 ).json()
+
+for source in data['sources']:
+    print(f"{source['label']}: https://vyla-api.pages.dev{source['url']}")
 ```
 
-```ts TypeScript
-const res = await fetch(
-  "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
-);
-const data = await res.json();
-const sources = data.sources;
-const subtitles = data.subtitles;
+```swift Swift
+let url = URL(string: "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1")!
+
+let (data, _) = try await URLSession.shared.data(from: url)
+let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+let sources = json["sources"] as! [[String: String]]
+
+for source in sources {
+    print("\(source["label"]!): https://vyla-api.pages.dev\(source["url"]!)")
+}
 ```
 </CodeGroup>
 
-### Response
+---
+
+## Response
 
 <ResponseField name="sources" type="Source[]" required>
-  Array of verified, proxied stream sources. Only working sources are included.
+  Array of verified, proxied HLS sources for the episode. Only streams that passed live verification are included.
 
   <Expandable title="Source object">
     <ResponseField name="source" type="string">
-      Internal provider key, e.g. `vixsrc`, `vidnest`.
+      Internal provider key, e.g. `source1`, `source2`.
     </ResponseField>
-
     <ResponseField name="label" type="string">
       Human-readable provider name.
     </ResponseField>
-
     <ResponseField name="url" type="string">
-      Proxied stream URL — routed through `/api` with CORS and full m3u8 segment rewriting applied. Pass directly to HLS.js or any player.
+      Proxied HLS stream URL with M3U8 segments rewritten. Prepend `https://vyla-api.pages.dev` for an absolute URL, then pass to `hls.loadSource()`.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
 <ResponseField name="subtitles" type="Subtitle[]" required>
-  Array of available subtitle tracks for the episode. Empty array if none found.
+  Available subtitle tracks for this specific episode. Empty array `[]` if none are found.
 
   <Expandable title="Subtitle object">
     <ResponseField name="label" type="string">
-      Language name of the subtitle track, e.g. `English`, `Arabic`.
+      Language name, e.g. `English`, `Spanish`.
     </ResponseField>
-
     <ResponseField name="file" type="string">
-      Direct URL to the VTT subtitle file.
+      Direct URL to a `.vtt` WebVTT file.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
 <ResponseField name="meta" type="object | null">
-  TMDB metadata for the episode. `null` if no `TMDB_API_KEY` is configured.
+  TMDB episode-level metadata (title, air date, overview, etc.). `null` if no `TMDB_API_KEY` is configured.
 </ResponseField>
 
+---
+
+## Responses
+
 <Tabs>
-  <Tab title="200 Success">
+  <Tab title="200 — Success">
     ```json
     {
       "sources": [
         {
-          "source": "vixsrc",
-          "label": "vixsrc",
-          "url": "/api?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F202976%3Ftoken%3D...&vl=1"
+          "source": "source1",
+          "label": "Source1",
+          "url": "/api?url=https%3A%2F%2Fplayer.source1.com%2F...&s1=1"
         },
         {
-          "source": "vidnest",
-          "label": "VidNest",
-          "url": "/api?url=https%3A%2F%2F...&vn=1"
+          "source": "source2",
+          "label": "Source2",
+          "url": "/api?url=https%3A%2F%2Fsource2.com%2F...&s2=1"
         }
       ],
       "subtitles": [
@@ -120,26 +160,54 @@ const subtitles = data.subtitles;
         }
       ],
       "meta": {
-        "id": 1396,
+        "id": 62085,
         "name": "Pilot",
-        "season_number": 1,
-        "episode_number": 1
+        "overview": "Walter White, a chemistry teacher...",
+        "air_date": "2008-01-20",
+        "episode_number": 1,
+        "season_number": 1
       }
     }
     ```
   </Tab>
-  <Tab title="400 Error">
+  <Tab title="400 — Missing Params">
+    Returned when any of `id`, `season`, or `episode` is missing from the query string.
+
     ```json
     { "error": "missing id, season, or episode" }
     ```
   </Tab>
-  <Tab title="502 Error">
+  <Tab title="502 — No Sources">
+    All providers failed to return a valid stream for this episode.
+
     ```json
     { "error": "no working sources found" }
     ```
   </Tab>
+  <Tab title="500 — Server Error">
+    ```json
+    { "error": "<error message>" }
+    ```
+  </Tab>
 </Tabs>
 
-<Note>
-  The `id` parameter refers to the **series**, not an individual episode. Season and episode are passed as separate parameters.
-</Note>
+---
+
+## Notes
+
+<AccordionGroup>
+  <Accordion title="Series ID vs Episode ID">
+    The `id` parameter is the **series** TMDB ID — the same ID regardless of which season or episode you request. Season and episode numbers are passed separately as `season` and `episode`.
+
+    | Wrong | Right |
+    |-------|-------|
+    | Episode-level TMDB ID | Series-level TMDB ID |
+    | `id=62085` (Pilot episode) | `id=1396` (Breaking Bad) |
+  </Accordion>
+  <Accordion title="Specials and bonus content">
+    Season `0` typically contains specials on TMDB. Support varies by provider — some handle it, others don't. Expect fewer working sources for specials.
+  </Accordion>
+  <Accordion title="Meta field is episode-level">
+    Unlike the movie endpoint where `meta` describes the film, `meta` here contains the **episode** data from TMDB (title, overview, air date, episode number). The series-level metadata is not included.
+  </Accordion>
+</AccordionGroup>

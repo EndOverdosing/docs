@@ -1,174 +1,181 @@
 ---
-title: "GET /api/test/{id}"
+title: Test a Source
 api: "GET https://vyla-api.pages.dev/api/test/{id}"
-description: "Test individual sources for movies and TV episodes"
+description: Debug a single provider in isolation — get the raw URL, proxy URL, elapsed time, and error details.
 ---
 
-Test individual streaming sources to verify their availability and get direct stream URLs. This endpoint is useful for debugging or when you need to test a specific provider.
+Tests one specific provider for a given TMDB ID without running the full parallel fanout or live verification. Useful for debugging why a source isn't appearing in movie or TV responses, or for checking provider availability before building.
 
-### Path Parameters
+<Note>
+  This endpoint does **not** verify the returned URL. Unlike `/api/movie` and `/api/tv`, it returns whatever the provider gives back — including potentially broken URLs. Use `ok: true` as a soft indicator only.
+</Note>
+
+---
+
+## Path Parameters
 
 <ParamField path="id" type="string" required>
-  TMDB ID. For movies use the movie ID, for TV use the series ID.
+  TMDB ID. For movies, use the movie ID. For TV, use the series ID.
 </ParamField>
 
-### Query Parameters
+---
+
+## Query Parameters
 
 <ParamField query="source" type="string" required>
-  Source provider to test. Available sources:
-  - `vixsrc`
-  - `icefy` 
-  - `vidzee`
-  - `vidnest`
-  - `vidsrc`
-  - `vidrock`
-  - `videasy`
+  Provider key to test. Must match one of the configured source keys exactly.
+
+  Available values: `source1`, `source2`, `source3`, `source4`, `source5`, `source6`
 </ParamField>
 
-<ParamField query="season" type="number" required="false">
-  Season number (required for TV episodes).
+<ParamField query="season" type="number">
+  Season number. Required for TV episodes; omit for movies.
 </ParamField>
 
-<ParamField query="episode" type="number" required="false">
-  Episode number (required for TV episodes).
+<ParamField query="episode" type="number">
+  Episode number. Required for TV episodes; omit for movies.
 </ParamField>
 
-### Example Request
+---
+
+## Request
 
 <CodeGroup>
-```bash cURL
-# Test movie source
-curl "https://vyla-api.pages.dev/api/test/550?source=vixsrc"
-
-# Test TV episode source  
-curl "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
+```bash Movie
+curl "https://vyla-api.pages.dev/api/test/550?source=source1"
 ```
 
-```js JavaScript
-// Test movie source
-const res = await fetch("https://vyla-api.pages.dev/api/test/550?source=vixsrc");
+```bash TV Episode
+curl "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=source2"
+```
+
+```javascript JavaScript
+// Test a single provider
+const res = await fetch(
+  'https://vyla-api.pages.dev/api/test/550?source=source1'
+);
 const data = await res.json();
 
-console.log(data.ok); // whether source is working
-console.log(data.url); // proxied stream URL
+if (data.ok) {
+  console.log(`✓ ${data.source} (${data.elapsed_ms}ms): ${data.url}`);
+} else {
+  console.error(`✗ ${data.source}: ${data.error}`);
+}
+```
 
-// Test TV episode source
-const tvRes = await fetch(
-  "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
-);
-const tvData = await tvRes.json();
+```typescript TypeScript
+interface TestResponse {
+  source: string;
+  id: string;
+  s: number | null;
+  e: number | null;
+  ok: boolean;
+  url: string | null;
+  raw_url: string | null;
+  elapsed_ms: number;
+  error: string | null;
+}
+
+const data: TestResponse = await fetch(
+  'https://vyla-api.pages.dev/api/test/550?source=source1'
+).then(r => r.json());
 ```
 
 ```python Python
-# Test movie source
-data = requests.get(
-  "https://vyla-api.pages.dev/api/test/550?source=vixsrc"
+import requests
+
+res = requests.get(
+  'https://vyla-api.pages.dev/api/test/550',
+  params={'source': 'source1'}
 ).json()
 
-# Test TV episode source
-tv_data = requests.get(
-  "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
-).json()
-```
-
-```ts TypeScript
-// Test movie source
-const res = await fetch("https://vyla-api.pages.dev/api/test/550?source=vixsrc");
-const data = await res.json();
-const isWorking = data.ok;
-const streamUrl = data.url;
-
-// Test TV episode source
-const tvRes = await fetch(
-  "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
-);
-const tvData = await tvRes.json();
+print(f"ok={res['ok']} elapsed={res['elapsed_ms']}ms")
+if res['error']:
+    print(f"error: {res['error']}")
 ```
 </CodeGroup>
 
-### Response
+---
+
+## Response
 
 <ResponseField name="source" type="string" required>
-  The source provider that was tested
+  The provider key that was tested.
 </ResponseField>
 
 <ResponseField name="id" type="string" required>
-  TMDB ID that was tested
+  The TMDB ID that was tested.
 </ResponseField>
 
 <ResponseField name="s" type="number | null" required>
-  Season number (null for movies)
+  Season number. `null` for movies.
 </ResponseField>
 
 <ResponseField name="e" type="number | null" required>
-  Episode number (null for movies)
+  Episode number. `null` for movies.
 </ResponseField>
 
 <ResponseField name="ok" type="boolean" required>
-  Whether the source is working and returned a valid stream
+  `true` if the provider returned a non-null URL. Does **not** guarantee the URL is playable — use `/api/movie` or `/api/tv` for verified sources.
 </ResponseField>
 
 <ResponseField name="url" type="string | null">
-  Proxied stream URL if successful, null if failed
+  Proxied stream URL if the provider returned one. `null` on failure.
 </ResponseField>
 
 <ResponseField name="raw_url" type="string | null">
-  Original unproxied stream URL if successful, null if failed
+  The original, unproxied stream URL from the provider. Useful for debugging. `null` on failure.
 </ResponseField>
 
 <ResponseField name="elapsed_ms" type="number" required>
-  Time taken to test the source in milliseconds
+  Time in milliseconds from the start of the test to receiving a URL (or failure).
 </ResponseField>
 
 <ResponseField name="error" type="string | null" required>
-  Error message if the test failed, null if successful
+  Error message if the provider threw an exception or returned nothing. `null` on success.
 </ResponseField>
 
+---
+
+## Responses
+
 <Tabs>
-  <Tab title="200 Success (Working Source)">
+  <Tab title="200 — Source Working">
     ```json
     {
-      "source": "vixsrc",
+      "source": "source1",
       "id": "550",
       "s": null,
       "e": null,
       "ok": true,
-      "url": "/api?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F170060%3Ftoken%3D85f3d0c002e4aa3bff87759df221e319%26expires%3D1782963433%26h%3D1%26lang%3Den&vl=1",
-      "raw_url": "https://vixsrc.to/playlist/170060?token=85f3d0c002e4aa3bff87759df221e319&expires=1782963433&h=1&lang=en",
-      "elapsed_ms": 0,
+      "url": "/api?url=https%3A%2F%2Fplayer.source1.com%2F...&s1=1",
+      "raw_url": "https://player.source1.com/hls/550/master.m3u8",
+      "elapsed_ms": 1204,
       "error": null
     }
     ```
   </Tab>
-  <Tab title="200 Success (TV Episode)">
+  <Tab title="200 — TV Episode">
     ```json
     {
-      "source": "vixsrc",
+      "source": "source2",
       "id": "1396",
       "s": 1,
       "e": 1,
       "ok": true,
-      "url": "/api?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F202976%3Ftoken%3D...&vl=1",
-      "raw_url": "https://vixsrc.to/playlist/202976?token=...",
-      "elapsed_ms": 0,
+      "url": "/api?url=https%3A%2F%2Fsource2.com%2F...&s2=1",
+      "raw_url": "https://source2.com/hls/1396/1/1/master.m3u8",
+      "elapsed_ms": 980,
       "error": null
     }
     ```
   </Tab>
-  <Tab title="400 Error">
-    ```json
-    { "error": "missing source" }
-    ```
-  </Tab>
-  <Tab title="404 Error">
-    ```json
-    { "error": "not found" }
-    ```
-  </Tab>
-  <Tab title="404 Error (Failed Source)">
+  <Tab title="200 — Source Failed">
+    HTTP status is still `200` even when the source fails.
+
     ```json
     {
-      "source": "vidsrc",
+      "source": "source3",
       "id": "550",
       "s": null,
       "e": null,
@@ -176,22 +183,56 @@ const tvData = await tvRes.json();
       "url": null,
       "raw_url": null,
       "elapsed_ms": 435,
-      "error": "source not found"
+      "error": "no stream returned"
     }
+    ```
+  </Tab>
+  <Tab title="400 — Invalid Source">
+    ```json
+    { "error": "invalid or missing source" }
     ```
   </Tab>
 </Tabs>
 
-<Note>
-  This endpoint tests individual sources in isolation. Use the `/api/movie` or `/api/tv` endpoints to test all sources simultaneously and get only working results.
-</Note>
+---
 
-## Available Sources
+## Testing All Sources
 
-- **vixsrc**: Reliable source with good quality streams
-- **icefy**: Alternative source with moderate availability  
-- **vidzee**: Good quality source when available
-- **vidnest**: Fast response times, moderate availability
-- **vidsrc**: Legacy source, often unavailable
-- **vidrock**: Alternative source, hit or miss availability
-- **videasy**: Decent quality source with reasonable response times
+To test all providers in a loop and find which are working for a given title:
+
+```javascript
+const BASE    = 'https://vyla-api.pages.dev';
+const SOURCES = ['source1', 'source2', 'source3', 'source4', 'source5', 'source6'];
+
+async function testAll(tmdbId, season, episode) {
+  const params = season && episode
+    ? `?season=${season}&episode=${episode}`
+    : '';
+
+  const results = await Promise.all(
+    SOURCES.map(source =>
+      fetch(`${BASE}/api/test/${tmdbId}${params}&source=${source}`)
+        .then(r => r.json())
+        .catch(err => ({ source, ok: false, error: err.message, elapsed_ms: null }))
+    )
+  );
+
+  results.forEach(r => {
+    const status = r.ok ? '✓' : '✗';
+    const time   = r.elapsed_ms != null ? `${r.elapsed_ms}ms` : 'N/A';
+    console.log(`${status} ${r.source.padEnd(8)} ${time.padStart(7)}  ${r.error || ''}`);
+  });
+}
+
+testAll(550);
+// ✓ source1   1204ms
+// ✓ source2    980ms
+// ✗ source3     435ms  no stream returned
+// ✓ source4   1540ms
+// ✓ source5   1100ms
+// ✓ source6    620ms
+```
+
+<Tip>
+  For a quicker overview, use `/api/health` — it probes all providers simultaneously and is optimised for monitoring.
+</Tip>

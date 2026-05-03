@@ -1,52 +1,170 @@
 ---
 title: TV Subtitles
-description: Get all available subtitle tracks for a TV episode
+api: "GET https://vyla-api.pages.dev/api/subtitles/tv/{tmdb_id}/{season}/{episode}"
+description: Fetch all available WebVTT subtitle tracks for a TV episode.
 ---
 
-# TV Subtitles
+Returns an array of subtitle tracks for a specific TV episode. Each track is a direct `.vtt` link — no proxy needed. Subtitle tracks are also bundled automatically in `/api/tv` responses; use this endpoint when you need them independently.
 
-Get all available subtitle tracks for a specific TV episode.
+---
 
-## Endpoint
+## Path Parameters
 
-```http
-GET /api/subtitles/tv/<tmdb_id>/<season>/<episode>
+<ParamField path="tmdb_id" type="string" required>
+  TMDB **series** ID — not episode ID.
+
+  **Example:** `1396` for Breaking Bad
+</ParamField>
+
+<ParamField path="season" type="number" required>
+  Season number.
+</ParamField>
+
+<ParamField path="episode" type="number" required>
+  Episode number within the season.
+</ParamField>
+
+---
+
+## Request
+
+<CodeGroup>
+```bash cURL
+curl https://vyla-api.pages.dev/api/subtitles/tv/1396/1/1
 ```
 
-## Parameters
+```javascript JavaScript
+const subtitles = await fetch(
+  'https://vyla-api.pages.dev/api/subtitles/tv/1396/1/1'
+).then(r => r.json());
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| tmdb_id | string | The TMDB ID of the TV series |
-| season | number | The season number |
-| episode | number | The episode number |
+subtitles.forEach(sub => {
+  console.log(`${sub.label}: ${sub.file}`);
+});
+```
+
+```typescript TypeScript
+interface Subtitle {
+  label: string;
+  file: string;
+}
+
+const subtitles: Subtitle[] = await fetch(
+  `https://vyla-api.pages.dev/api/subtitles/tv/${seriesId}/${season}/${episode}`
+).then(r => r.json());
+```
+
+```python Python
+import requests
+
+series_id = 1396
+season    = 1
+episode   = 1
+
+subtitles = requests.get(
+  f'https://vyla-api.pages.dev/api/subtitles/tv/{series_id}/{season}/{episode}'
+).json()
+
+for sub in subtitles:
+    print(f"{sub['label']}: {sub['file']}")
+```
+</CodeGroup>
+
+---
 
 ## Response
 
-Returns an array of subtitle tracks:
+Returns a JSON array. `404` if no subtitles are found for this episode.
 
-```json
-[
-    {
+<ResponseField name="[]" type="Subtitle[]">
+  Array of subtitle track objects for the episode.
+
+  <Expandable title="Subtitle object">
+    <ResponseField name="label" type="string">
+      Language name of the track, e.g. `English`, `Spanish`, `Arabic`.
+    </ResponseField>
+    <ResponseField name="file" type="string">
+      Direct URL to a WebVTT (`.vtt`) subtitle file.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Responses
+
+<Tabs>
+  <Tab title="200 — Success">
+    ```json
+    [
+      {
         "label": "English",
-        "file": "https://cache.vdrk.site/v1/vtt/tv/<id>/<s>/<e>/English.vtt"
-    },
-    {
+        "file": "https://cache.vdrk.site/v1/vtt/tv/1396/1/1/English.vtt"
+      },
+      {
         "label": "Spanish",
-        "file": "https://cache.vdrk.site/v1/vtt/tv/<id>/<s>/<e>/Spanish.vtt"
-    }
-]
+        "file": "https://cache.vdrk.site/v1/vtt/tv/1396/1/1/Spanish.vtt"
+      },
+      {
+        "label": "French",
+        "file": "https://cache.vdrk.site/v1/vtt/tv/1396/1/1/French.vtt"
+      }
+    ]
+    ```
+  </Tab>
+  <Tab title="404 — Not Found">
+    ```json
+    { "error": "no subtitles found" }
+    ```
+  </Tab>
+  <Tab title="500 — Server Error">
+    ```json
+    { "error": "<error message>" }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Building an Episode Selector with Subtitles
+
+```typescript
+const BASE = 'https://vyla-api.pages.dev';
+
+async function loadEpisode(
+  seriesId: number,
+  season: number,
+  episode: number,
+  videoEl: HTMLVideoElement
+) {
+  // Fetch sources and subtitles in one call
+  const data = await fetch(
+    `${BASE}/api/tv?id=${seriesId}&season=${season}&episode=${episode}`
+  ).then(r => r.json());
+
+  if (!data.sources.length) throw new Error('No sources available');
+
+  // Remove existing subtitle tracks
+  Array.from(videoEl.querySelectorAll('track')).forEach(t => t.remove());
+
+  // Attach new subtitle tracks
+  data.subtitles.forEach((sub: { label: string; file: string }, i: number) => {
+    const track = document.createElement('track');
+    track.kind    = 'subtitles';
+    track.label   = sub.label;
+    track.src     = sub.file;
+    track.default = i === 0;
+    videoEl.appendChild(track);
+  });
+
+  // Load stream
+  const hls = new Hls();
+  hls.loadSource(BASE + data.sources[0].url);
+  hls.attachMedia(videoEl);
+  hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play());
+}
 ```
 
-## Example
-
-```bash
-curl https://vyla-api.pages.dev/api/subtitles/tv/76479/1/1
-```
-
-## Response Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| label | string | The language label of the subtitle |
-| file | string | Direct URL to the VTT subtitle file |
+<Note>
+  Subtitle availability varies by episode. Newer or less popular shows may return an empty array. Always handle `subtitles.length === 0` gracefully in your UI.
+</Note>

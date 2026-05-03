@@ -1,143 +1,300 @@
 ---
 title: Quickstart
-description: Get up and running with Vyla API in under 5 minutes
+description: From zero to a working HLS player in under 5 minutes.
 ---
 
-## Pick your use case
+## Before You Start
 
-<CardGroup cols={2}>
-  <Card title="Build Your Own Player" href="#build-your-own-player">
-    Fetch sources and subtitles as JSON and plug them into your own UI with HLS.js
-  </Card>
-  <Card title="Check Provider Health" href="#check-provider-health">
-    See which providers are up and how fast they respond
-  </Card>
-</CardGroup>
-
----
-
-## Finding TMDB IDs
-
-Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The ID is in the URL:
+You'll need a TMDB ID for the content you want to stream. Every movie and TV show on [themoviedb.org](https://www.themoviedb.org) has one — it's the number in the URL.
 
 | URL | TMDB ID | Title |
 |-----|---------|-------|
 | `themoviedb.org/movie/550` | `550` | Fight Club |
 | `themoviedb.org/movie/27205` | `27205` | Inception |
-| `themoviedb.org/tv/456` | `456` | The Simpsons |
 | `themoviedb.org/tv/1396` | `1396` | Breaking Bad |
+| `themoviedb.org/tv/94997` | `94997` | House of the Dragon |
 
 ---
 
-## Build Your Own Player
+## Step 1 — Fetch Sources
 
-<Steps>
-  <Step title="Fetch all working sources and subtitles">
-    <CodeGroup>
-    ```bash Movie
-    curl https://vyla-api.pages.dev/api/movie?id=550
-    ```
+Call `/api/movie` or `/api/tv`. The API fans out to all providers in parallel, verifies every URL live, and returns only working sources.
 
-    ```bash TV Episode
-    curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
-    ```
-    </CodeGroup>
-
-    Every source in the response has already been verified live — no dead URLs. Subtitles are included automatically.
-  </Step>
-
-  <Step title="Play with HLS.js and load subtitles">
-    ```html
-    <video id="player" controls></video>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-    <script>
-    async function loadMovie(tmdbId) {
-      const res = await fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`);
-      const data = await res.json();
-
-      if (!data.sources.length) return;
-
-      const source = data.sources[0];
-      const video = document.getElementById("player");
-
-      const hls = new Hls();
-      hls.loadSource(source.url);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        data.subtitles.forEach(sub => {
-          const track = document.createElement("track");
-          track.kind = "subtitles";
-          track.label = sub.label;
-          track.src = sub.file;
-          video.appendChild(track);
-        });
-        video.play();
-      });
-    }
-
-    loadMovie(550);
-    </script>
-    ```
-
-    <Note>
-      The `url` field on every source is already proxied and CORS-safe — pass it directly to HLS.js with no additional encoding. Subtitle `file` URLs are direct VTT links and can be used as `<track>` elements.
-    </Note>
-  </Step>
-
-  <Step title="Try the next source on failure">
-    ```js
-    async function loadWithFallback(tmdbId) {
-      const res = await fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`);
-      const data = await res.json();
-      const sources = data.sources;
-      let index = 0;
-
-      function trySource() {
-        if (index >= sources.length) return;
-        const video = document.getElementById("player");
-        const hls = new Hls();
-
-        hls.on(Hls.Events.ERROR, (_, err) => {
-          if (err.fatal) { hls.destroy(); index++; trySource(); }
-        });
-
-        hls.loadSource(sources[index].url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-      }
-
-      trySource();
-    }
-    ```
-  </Step>
-</Steps>
-
----
-
-## Fetch Subtitles Standalone
-
-You can fetch subtitle tracks independently without fetching stream sources:
-
-```bash
-# Movie subtitles
-curl https://vyla-api.pages.dev/api/subtitles/movie/550
-
-# TV episode subtitles
-curl https://vyla-api.pages.dev/api/subtitles/tv/1396/1/1
+<CodeGroup>
+```bash Movie
+curl https://vyla-api.pages.dev/api/movie?id=550
 ```
 
+```bash TV Episode
+curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
+```
+</CodeGroup>
+
+<Accordion title="Example response">
 ```json
-[
-  { "label": "English", "file": "https://cache.vdrk.site/v1/vtt/movie/550/English.vtt" },
-  { "label": "Spanish", "file": "https://cache.vdrk.site/v1/vtt/movie/550/Spanish.vtt" },
-  { "label": "French",  "file": "https://cache.vdrk.site/v1/vtt/movie/550/French.vtt" }
-]
+{
+  "sources": [
+    {
+      "source": "source1",
+      "label": "Source1",
+      "url": "/api?url=https%3A%2F%2F...&s1=1"
+    },
+    {
+      "source": "source2",
+      "label": "Source2",
+      "url": "/api?url=https%3A%2F%2F...&s2=1"
+    }
+  ],
+  "subtitles": [
+    {
+      "label": "English",
+      "file": "https://cache.vdrk.site/v1/vtt/movie/550/English.vtt"
+    },
+    {
+      "label": "Spanish",
+      "file": "https://cache.vdrk.site/v1/vtt/movie/550/Spanish.vtt"
+    }
+  ],
+  "meta": {
+    "id": 550,
+    "title": "Fight Club",
+    "release_date": "1999-10-15"
+  }
+}
+```
+</Accordion>
+
+---
+
+## Step 2 — Play with HLS.js
+
+The `url` field on each source is already proxied, CORS-safe, and ready to pass directly to your player.
+
+<Tabs>
+  <Tab title="Vanilla JS">
+    ```html
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+    </head>
+    <body>
+      <video id="player" controls style="width:100%"></video>
+
+      <script>
+        const BASE = 'https://vyla-api.pages.dev';
+
+        async function loadMovie(tmdbId) {
+          const res  = await fetch(`${BASE}/api/movie?id=${tmdbId}`);
+          const data = await res.json();
+          if (!data.sources?.length) return console.error('No sources');
+
+          const video = document.getElementById('player');
+          const hls   = new Hls();
+
+          hls.loadSource(BASE + data.sources[0].url);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            // Attach subtitle tracks
+            data.subtitles.forEach(sub => {
+              const track  = document.createElement('track');
+              track.kind   = 'subtitles';
+              track.label  = sub.label;
+              track.src    = sub.file;
+              video.appendChild(track);
+            });
+            video.play();
+          });
+        }
+
+        loadMovie(550);
+      </script>
+    </body>
+    </html>
+    ```
+  </Tab>
+  <Tab title="React">
+    ```tsx
+    import { useEffect, useRef } from 'react';
+    import Hls from 'hls.js';
+
+    const BASE = 'https://vyla-api.pages.dev';
+
+    export function Player({ tmdbId }: { tmdbId: number }) {
+      const videoRef = useRef<HTMLVideoElement>(null);
+
+      useEffect(() => {
+        let hls: Hls;
+
+        async function load() {
+          const res  = await fetch(`${BASE}/api/movie?id=${tmdbId}`);
+          const data = await res.json();
+          if (!data.sources?.length || !videoRef.current) return;
+
+          hls = new Hls();
+          hls.loadSource(BASE + data.sources[0].url);
+          hls.attachMedia(videoRef.current);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            videoRef.current?.play();
+          });
+        }
+
+        if (Hls.isSupported()) load();
+        return () => hls?.destroy();
+      }, [tmdbId]);
+
+      return <video ref={videoRef} controls style={{ width: '100%' }} />;
+    }
+    ```
+  </Tab>
+  <Tab title="Next.js">
+    ```tsx
+    'use client';
+    import { useEffect, useRef } from 'react';
+    import dynamic from 'next/dynamic';
+
+    const BASE = 'https://vyla-api.pages.dev';
+
+    export default function Player({ tmdbId }: { tmdbId: number }) {
+      const videoRef = useRef<HTMLVideoElement>(null);
+
+      useEffect(() => {
+        // Dynamic import keeps Hls out of SSR bundle
+        import('hls.js').then(({ default: Hls }) => {
+          if (!Hls.isSupported() || !videoRef.current) return;
+
+          fetch(`${BASE}/api/movie?id=${tmdbId}`)
+            .then(r => r.json())
+            .then(data => {
+              if (!data.sources?.length) return;
+              const hls = new Hls();
+              hls.loadSource(BASE + data.sources[0].url);
+              hls.attachMedia(videoRef.current!);
+            });
+        });
+      }, [tmdbId]);
+
+      return <video ref={videoRef} controls className="w-full" />;
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import requests
+
+    BASE = "https://vyla-api.pages.dev"
+
+    def get_sources(tmdb_id: int, season: int = None, episode: int = None):
+        if season and episode:
+            url = f"{BASE}/api/tv"
+            params = {"id": tmdb_id, "season": season, "episode": episode}
+        else:
+            url = f"{BASE}/api/movie"
+            params = {"id": tmdb_id}
+
+        res = requests.get(url, params=params)
+        res.raise_for_status()
+        data = res.json()
+
+        return {
+            "sources": data.get("sources", []),
+            "subtitles": data.get("subtitles", []),
+        }
+
+    # Example
+    result = get_sources(550)
+    for source in result["sources"]:
+        print(f"{source['label']}: {BASE}{source['url']}")
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Step 3 — Handle Fallbacks
+
+Providers can go down at any time. Build a fallback loop so your player automatically tries the next source on failure.
+
+```typescript
+const BASE = 'https://vyla-api.pages.dev';
+
+async function loadWithFallback(
+  videoEl: HTMLVideoElement,
+  tmdbId: number,
+  season?: number,
+  episode?: number
+) {
+  const endpoint = season && episode
+    ? `${BASE}/api/tv?id=${tmdbId}&season=${season}&episode=${episode}`
+    : `${BASE}/api/movie?id=${tmdbId}`;
+
+  const data = await fetch(endpoint).then(r => r.json());
+  const sources: string[] = data.sources.map((s: any) => BASE + s.url);
+
+  let index = 0;
+  let hls: Hls;
+
+  function tryNext() {
+    if (index >= sources.length) {
+      console.error('All sources exhausted');
+      return;
+    }
+
+    hls?.destroy();
+    hls = new Hls();
+
+    hls.on(Hls.Events.ERROR, (_, err) => {
+      if (err.fatal) {
+        console.warn(`Source ${index} failed, trying next`);
+        index++;
+        tryNext();
+      }
+    });
+
+    hls.loadSource(sources[index]);
+    hls.attachMedia(videoEl);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play());
+  }
+
+  tryNext();
+}
+```
+
+---
+
+## Step 4 — Add Subtitles
+
+Subtitles are included automatically in movie and TV responses. You can also fetch them standalone if you're building a UI that loads them separately.
+
+```javascript
+// Already included in /api/movie and /api/tv responses
+const { sources, subtitles } = await fetch(
+  'https://vyla-api.pages.dev/api/movie?id=550'
+).then(r => r.json());
+
+// Or fetch standalone
+const subtitles = await fetch(
+  'https://vyla-api.pages.dev/api/subtitles/movie/550'
+).then(r => r.json());
+
+// Apply to video element
+subtitles.forEach(sub => {
+  const track = Object.assign(document.createElement('track'), {
+    kind:  'subtitles',
+    label: sub.label,
+    src:   sub.file,
+  });
+  videoEl.appendChild(track);
+});
 ```
 
 ---
 
 ## Check Provider Health
+
+Before building, verify which providers are currently live:
 
 ```bash
 curl https://vyla-api.pages.dev/api/health
@@ -146,47 +303,34 @@ curl https://vyla-api.pages.dev/api/health
 ```json
 {
   "status": "ok",
-  "timestamp": "2024-01-01T00:00:00.000Z",
-  "tmdb": true,
-  "cache": 4,
-  "probe_id": "550",
+  "timestamp": "2025-01-01T00:00:00.000Z",
   "sources": {
-    "vixsrc":  { "ok": true,  "ms": 812 },
-    "vidzee":  { "ok": true,  "ms": 1204 },
-    "vidnest": { "ok": true,  "ms": 980 },
-    "vidsrc":  { "ok": false, "ms": null },
-    "vidrock": { "ok": true,  "ms": 1540 },
-    "videasy": { "ok": true,  "ms": 1100 }
+    "source1":  { "ok": true,  "ms": 1204 },
+    "source2": { "ok": true,  "ms": 980  },
+    "source3":  { "ok": false, "ms": 435  },
+    "source4": { "ok": true,  "ms": 1540 },
+    "source5": { "ok": true,  "ms": 1100 },
+    "source6":  { "ok": true,  "ms": 620  }
   }
 }
 ```
 
-`status` is `"ok"` only when every provider passes. `"degraded"` means at least one is down — the rest still work.
+`status: "degraded"` means at least one provider is down. The rest still work — your fallback logic handles it automatically.
 
 ---
 
-## Test a Single Provider
+## Debug a Single Provider
 
-Useful for debugging or checking why a specific source isn't appearing:
+Use `/api/test` to check a specific provider without going through the full fanout:
 
 ```bash
-# Test vixsrc for Fight Club
-curl "https://vyla-api.pages.dev/api/test/550?source=vixsrc"
+# Test Source1 for Fight Club
+curl "https://vyla-api.pages.dev/api/test/550?source=source1"
 
-# Test vidzee for Breaking Bad S1E1
-curl "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vidzee"
+# Test Source2 for Breaking Bad S1E1
+curl "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=source2"
 ```
 
-```json
-{
-  "source": "vixsrc",
-  "id": "550",
-  "s": null,
-  "e": null,
-  "ok": true,
-  "url": "/api?url=<encoded>&vl=1",
-  "raw_url": "https://vixsrc.to/playlist/...",
-  "elapsed_ms": 923,
-  "error": null
-}
-```
+<Card title="Full API Reference →" href="/api-reference/movie" icon="book">
+  See complete request/response docs for every endpoint.
+</Card>

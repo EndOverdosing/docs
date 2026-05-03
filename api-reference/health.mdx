@@ -1,128 +1,172 @@
 ---
-title: "GET /api/health"
+title: Health Check
 api: "GET https://vyla-api.pages.dev/api/health"
-description: "Check the status and health of the Vyla API service and its sources"
+description: Probe all six providers in real time and get per-source latency and status.
 ---
 
-Check the overall health status of the Vyla API service and its connected sources.
+The health endpoint probes every configured provider using a known-good TMDB ID (`550` — *Fight Club*) and reports whether each one is up, along with the response time in milliseconds. No parameters needed.
 
-### Example Request
+<Note>
+  Health checks are **not cached**. Each call triggers a fresh live probe of all six providers, so expect a 2–5 second response time.
+</Note>
+
+---
+
+## Request
 
 <CodeGroup>
 ```bash cURL
-curl -X GET https://vyla-api.pages.dev/api/health
+curl https://vyla-api.pages.dev/api/health
 ```
 
-```js JavaScript
-const res = await fetch("https://vyla-api.pages.dev/api/health");
+```javascript JavaScript
+const res  = await fetch('https://vyla-api.pages.dev/api/health');
 const data = await res.json();
 
-console.log(data.status); // overall health status
-console.log(data.sources); // individual source status
+if (data.status !== 'ok') {
+  const down = Object.entries(data.sources)
+    .filter(([, v]) => !v.ok)
+    .map(([k]) => k);
+  console.warn('Degraded providers:', down);
+}
 ```
 
 ```python Python
 import requests
 
-data = requests.get("https://vyla-api.pages.dev/api/health").json()
-print(data["status"])
-print(data["sources"])
+data = requests.get('https://vyla-api.pages.dev/api/health').json()
+print(data['status'])
+
+for source, info in data['sources'].items():
+    status = '✓' if info['ok'] else '✗'
+    ms = info['ms'] or 'N/A'
+    print(f'  {status} {source}: {ms}ms')
 ```
 
-```ts TypeScript
-const res = await fetch("https://vyla-api.pages.dev/api/health");
-const data = await res.json();
-const status = data.status;
-const sources = data.sources;
+```typescript TypeScript
+interface SourceHealth {
+  ok: boolean;
+  ms: number | null;
+  error?: string;
+}
+
+interface HealthResponse {
+  status: 'ok' | 'degraded';
+  timestamp: string;
+  tmdb: boolean;
+  cache: number;
+  probe_id: string;
+  sources: Record<string, SourceHealth>;
+}
+
+const data: HealthResponse = await fetch(
+  'https://vyla-api.pages.dev/api/health'
+).then(r => r.json());
 ```
 </CodeGroup>
 
-### Response
+---
+
+## Response
 
 <ResponseField name="status" type="string" required>
-  Overall health status of the API
+  Overall health of the API.
+  - `"ok"` — all providers returned a valid stream
+  - `"degraded"` — one or more providers failed; others still work
 </ResponseField>
 
 <ResponseField name="timestamp" type="string" required>
-  ISO timestamp of when the health check was performed
+  ISO 8601 timestamp of when the health check was run.
 </ResponseField>
 
 <ResponseField name="tmdb" type="boolean" required>
-  TMDB API connection status
+  Whether a `TMDB_API_KEY` is configured. `false` means the `meta` field will be `null` in movie and TV responses.
 </ResponseField>
 
 <ResponseField name="cache" type="number" required>
-  Current cache status/metrics
+  Number of entries currently in the in-memory stream cache. Resets when the Worker cold-starts.
 </ResponseField>
 
 <ResponseField name="probe_id" type="string" required>
-  Current probe identifier
+  The TMDB ID used to probe all providers. Always `"550"` (Fight Club).
 </ResponseField>
 
 <ResponseField name="sources" type="object" required>
-  Status of each connected source
+  Per-provider health results, keyed by provider key.
 
-  <Expandable title="Source object">
+  <Expandable title="Per-source object">
     <ResponseField name="ok" type="boolean">
-      Whether the source is responding correctly
+      `true` if the provider returned a valid, playable HLS stream during this probe.
     </ResponseField>
 
-    <ResponseField name="ms" type="number">
-      Response time in milliseconds
+    <ResponseField name="ms" type="number | null">
+      Response time in milliseconds. `null` if the probe threw an error before a response was received.
+    </ResponseField>
+
+    <ResponseField name="error" type="string">
+      Error message, present only when the probe threw an exception.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
+---
+
+## Responses
+
 <Tabs>
-  <Tab title="200 Success">
+  <Tab title="200 — All OK">
+    All providers are live and returned valid streams.
+
+    ```json
+    {
+      "status": "ok",
+      "timestamp": "2025-06-01T12:00:00.000Z",
+      "tmdb": true,
+      "cache": 12,
+      "probe_id": "550",
+      "sources": {
+        "source1":  { "ok": true, "ms": 1204 },
+        "source2": { "ok": true, "ms": 980  },
+        "source3":  { "ok": true, "ms": 2100 },
+        "source4": { "ok": true, "ms": 1540 },
+        "source5": { "ok": true, "ms": 1100 },
+        "source6":  { "ok": true, "ms": 620  }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="207 — Degraded">
+    One or more providers failed. HTTP status is `207 Multi-Status`. Working sources are still usable.
+
     ```json
     {
       "status": "degraded",
-      "timestamp": "2026-05-03T03:32:30.812Z",
+      "timestamp": "2025-06-01T12:00:00.000Z",
       "tmdb": true,
-      "cache": 0,
+      "cache": 4,
       "probe_id": "550",
       "sources": {
-        "vixsrc": {
-          "ok": true,
-          "ms": 1095
-        },
-        "icefy": {
-          "ok": true,
-          "ms": 1351
-        },
-        "vidzee": {
-          "ok": true,
-          "ms": 2973
-        },
-        "vidnest": {
-          "ok": true,
-          "ms": 194
-        },
-        "vidsrc": {
-          "ok": false,
-          "ms": 435
-        },
-        "vidrock": {
-          "ok": false,
-          "ms": 1138
-        },
-        "videasy": {
-          "ok": true,
-          "ms": 1114
-        }
+        "source1":  { "ok": true,  "ms": 1204 },
+        "source2": { "ok": true,  "ms": 980  },
+        "source3":  { "ok": false, "ms": 435  },
+        "source4": { "ok": false, "ms": 1138, "error": "no stream returned" },
+        "source5": { "ok": true, "ms": 1100 },
+        "source6":  { "ok": true, "ms": 620  }
       }
     }
     ```
   </Tab>
 </Tabs>
 
-<Note>
-  Health check responses are real-time and reflect the current status of all connected sources. Response times are measured in milliseconds and indicate how quickly each source responded to the last probe.
-</Note>
+---
 
-## Status Values
+## Status Reference
 
-- **healthy**: All systems operational
-- **degraded**: Some sources may be unavailable but core functionality remains  
-- **unhealthy**: Critical systems or multiple sources are down
+| HTTP | `status` field | Meaning |
+|------|----------------|---------|
+| `200` | `"ok"` | All providers healthy |
+| `207` | `"degraded"` | At least one provider down |
+
+<Warning>
+  A `207 Degraded` response does **not** mean the API is unusable. Movie and TV endpoints will still return sources from whichever providers are working. Degrade gracefully in your application — check `data.sources.length > 0` rather than depending on `status === "ok"`.
+</Warning>

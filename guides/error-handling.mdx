@@ -1,0 +1,282 @@
+---
+title: Error Handling
+description: Patterns for handling failures, fallbacks, and edge cases when integrating the Vyla API.
+---
+
+Streaming APIs deal with unreliable upstream sources. This page covers every failure mode you'll encounter and the recommended pattern for handling each one.
+
+---
+
+## Error Response Shape
+
+All errors return JSON with a single `error` field:
+
+```json
+{ "error": "description of what went wrong" }
+```
+
+| HTTP Status | When |
+|-------------|------|
+| `400` | Missing or invalid request parameters |
+| `404` | No data found (subtitles, downloads) |
+| `500` | Unexpected server error |
+| `502` | All providers failed verification |
+
+---
+
+## Handling No Sources (`502`)
+
+The most common failure. All six providers failed to return a playable stream.
+
+```typescript
+const res  = await fetch('https://vyla-api.pages.dev/api/movie?id=550');
+const data = await res.json();
+
+if (res.status === 502 || !data.sources?.length) {
+  // Show "unavailable" state in your UI
+  showError('This title is currently unavailable. Try again later.');
+  return;
+}
+
+// sources guaranteed non-empty here
+playSource(data.sources[0]);
+```
+
+<Tip>
+  A `200` with `sources.length === 0` should not occur — the API returns `502` when all providers fail. But it's good practice to guard against it anyway.
+</Tip>
+
+---
+
+## Source Fallback Loop
+
+Providers can fail mid-stream (e.g., after the manifest loads but during segment fetching). Build a fallback loop that tries each source in sequence:
+
+```typescript
+import Hls from 'hls.js';
+
+const BASE = 'https://vyla-api.pages.dev';
+
+interface Source {
+  source: string;
+  label: string;
+  url: string;
+}
+
+async function playWithFallback(
+  videoEl: HTMLVideoElement,
+  sources: Source[],
+  onSourceChange?: (source: Source) => void
+) {
+  let index = 0;
+  let hls: Hls | null = null;
+
+  function trySource() {
+    if (index >= sources.length) {
+      console.error('All sources exhausted');
+      return;
+    }
+
+    const source = sources[index];
+    onSourceChange?.(source);
+
+    hls?.destroy();
+    hls = new Hls({
+      // Reduce initial fragment size for faster start
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+    });
+
+    hls.on(Hls.Events.ERROR, (_, err) => {
+      if (err.fatal) {
+        console.warn(`Source "${source.label}" failed:`, err.type);
+        index++;
+        trySource();
+      }
+    });
+
+    hls.loadSource(BASE + source.url);
+    hls.attachMedia(videoEl);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play());
+  }
+
+  trySource();
+
+  return () => hls?.destroy(); // cleanup function
+}
+```
+
+---
+
+## Network Timeouts
+
+The API can take up to 25 seconds when slow providers are the only ones working. Set a client-side timeout:
+
+```typescript
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs = 15000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Request timed out');
+    throw err;
+  }
+}
+
+// Use in your loader
+try {
+  const res  = await fetchWithTimeout(
+    'https://vyla-api.pages.dev/api/movie?id=550',
+    12000 // 12 second client timeout
+  );
+  const data = await res.json();
+} catch (err) {
+  if (err.message === 'Request timed out') {
+    showError('Loading is taking too long. Please try again.');
+  }
+}
+```
+
+---
+
+## Handling Missing Subtitles
+
+Subtitles are not guaranteed for every title. Always handle the empty array case:
+
+```typescript
+const data = await fetch(
+  'https://vyla-api.pages.dev/api/movie?id=550'
+).then(r => r.json());
+
+if (data.subtitles.length === 0) {
+  // Hide subtitle controls, or show "no subtitles available"
+  subtitleButton.style.display = 'none';
+} else {
+  attachSubtitles(videoEl, data.subtitles);
+}
+```
+
+---
+
+## Retry Logic for Transient Failures
+
+The API itself retries each provider internally, but you can add a top-level retry for complete request failures (network errors, 5xx):
+
+```typescript
+async function fetchWithRetry(
+  url: string,
+  attempts = 3,
+  delayMs = 2000
+): Promise<any> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok || res.status === 404) return res.json(); // don't retry 404
+      if (i === attempts - 1) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+}
+```
+
+---
+
+## Checking Health Before Requests
+
+If you're building a dashboard or monitoring tool, check provider health before making movie/TV requests to give users an early warning:
+
+```typescript
+async function checkAndLoad(tmdbId: number) {
+  const health = await fetch(
+    'https://vyla-api.pages.dev/api/health'
+  ).then(r => r.json());
+
+  if (health.status === 'degraded') {
+    const down = Object.entries(health.sources)
+      .filter(([, v]: any) => !v.ok)
+      .map(([k]) => k);
+    console.warn(`Degraded: ${down.join(', ')} may be unavailable`);
+  }
+
+  // Proceed — degraded just means fewer sources
+  return fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`)
+    .then(r => r.json());
+}
+```
+
+---
+
+## Full Error Boundary (React)
+
+```tsx
+import { useState, useCallback } from 'react';
+import Hls from 'hls.js';
+
+type PlayerState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'playing'; sourceLabel: string }
+  | { status: 'error'; message: string };
+
+export function useVylaPlayer(tmdbId: number) {
+  const [state, setState] = useState<PlayerState>({ status: 'idle' });
+
+  const load = useCallback(async (videoEl: HTMLVideoElement) => {
+    setState({ status: 'loading' });
+
+    let data: any;
+    try {
+      const res = await fetch(
+        `https://vyla-api.pages.dev/api/movie?id=${tmdbId}`
+      );
+      data = await res.json();
+    } catch {
+      setState({ status: 'error', message: 'Network error. Check your connection.' });
+      return;
+    }
+
+    if (!data.sources?.length) {
+      setState({ status: 'error', message: 'No sources available for this title.' });
+      return;
+    }
+
+    let index = 0;
+    const BASE = 'https://vyla-api.pages.dev';
+
+    function trySource() {
+      if (index >= data.sources.length) {
+        setState({ status: 'error', message: 'All sources failed.' });
+        return;
+      }
+      const source = data.sources[index];
+      const hls    = new Hls();
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setState({ status: 'playing', sourceLabel: source.label });
+        videoEl.play();
+      });
+
+      hls.on(Hls.Events.ERROR, (_, err) => {
+        if (err.fatal) { hls.destroy(); index++; trySource(); }
+      });
+
+      hls.loadSource(BASE + source.url);
+      hls.attachMedia(videoEl);
+    }
+
+    trySource();
+  }, [tmdbId]);
+
+  return { state, load };
+}
+```
