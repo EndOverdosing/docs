@@ -1,26 +1,26 @@
 ---
 title: Introduction
-description: Stream and download any movie or TV show via TMDB ID — one API, eight providers, zero config.
+description: Stream any movie or TV show via TMDB ID — one API, seven providers, zero config.
 ---
 
 <img src="/images/rounded-banner.png" alt="Vyla API" />
 
 ## What is Vyla API?
 
-Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 8 providers concurrently and serves them through a unified JSON interface. Pass any TMDB ID and get back:
+Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 7 providers concurrently and serves them through a unified JSON interface. Pass any TMDB ID and get back every working source, already verified and proxied.
 
 <CardGroup cols={2}>
   <Card title="Stream URLs">
-    Direct HLS and MP4 sources, sorted by quality — filtered to English audio only
+    All working HLS sources from every provider — verified live before being returned
   </Card>
-  <Card title="Download Links">
-    Pre-built `download_url` and ready-to-run `ffmpeg_command` for every source
+  <Card title="CORS Proxy">
+    Every URL is routed through Cloudflare with full m3u8 segment rewriting — no CORS issues in any browser player
   </Card>
-  <Card title="Subtitles">
-    Deduplicated English subtitle tracks in VTT and SRT, proxied and ready to inject
+  <Card title="Health Check">
+    Per-provider health endpoint shows which sources are up and their response times
   </Card>
-  <Card title="Embeddable Player">
-    One iframe, zero config — fallback logic, subtitles, and HLS.js built in
+  <Card title="Single Provider Testing">
+    Test any individual provider by key to debug or compare results
   </Card>
 </CardGroup>
 
@@ -43,140 +43,69 @@ All endpoints return `Access-Control-Allow-Origin: *` — no credentials needed.
 curl https://vyla-api.pages.dev/api/movie?id=27205
 ```
 
-```bash Enriched + Download-Ready
-curl https://vyla-api.pages.dev/api/stream/movie?id=27205
+```bash TV Episode Sources
+curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
 ```
 
-```bash Download via ffmpeg
-curl https://vyla-api.pages.dev/api/download/movie?id=27205
-```
-
-```html Embed Player
-<iframe
-  src="https://vyla-api.pages.dev/api/player?type=movie&id=27205"
-  width="100%"
-  height="500"
-  allowfullscreen
-></iframe>
+```bash Health Check
+curl https://vyla-api.pages.dev/api/health
 ```
 </CodeGroup>
 
 <Tip>
-  **New here?** Jump to the [Quickstart](/api-reference/quickstart) for a guided walkthrough of the four most common use cases.
+  **New here?** Jump to the [Quickstart](/api-reference/quickstart) for a guided walkthrough.
 </Tip>
 
 ---
 
 ## Endpoint Overview
 
-<AccordionGroup>
-  <Accordion title="Scraping Endpoints — raw sources">
-    | Endpoint | Description |
-    |----------|-------------|
-    | `GET /api/movie` | Raw streaming sources for a movie |
-    | `GET /api/tv` | Raw streaming sources for a TV episode |
-    | `GET /api/scrape` | Single-provider scrape — internal building block |
-  </Accordion>
-
-  <Accordion title="Enriched / Download Endpoints — processed sources">
-    | Endpoint | Description |
-    |----------|-------------|
-    | `GET /api/stream/movie` | All providers in parallel · `download_url` · `ffmpeg_command` · deep dedup |
-    | `GET /api/stream/tv` | Same, for TV episodes |
-    | `GET /api/download/movie` | Alias of `/api/stream/movie` |
-    | `GET /api/download/tv` | Alias of `/api/stream/tv` |
-  </Accordion>
-
-  <Accordion title="Utility Endpoints">
-    | Endpoint | Description |
-    |----------|-------------|
-    | `GET /api/download` | Proxy-download a single raw video URL |
-    | `GET /api/proxy` | Proxy any URL through Cloudflare with CORS + header injection |
-    | `GET /api/player` | Embeddable fullscreen HTML player |
-  </Accordion>
-</AccordionGroup>
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/movie` | All working sources for a movie |
+| `GET /api/tv` | All working sources for a TV episode |
+| `GET /api/health` | Per-provider health check |
+| `GET /api/test/<id>?source=<key>` | Test a single provider |
 
 ---
 
 ## Providers
 
-Sources are scraped concurrently from all 8 providers, filtered to English audio, and sorted by quality before being returned.
+Sources are fetched from all 7 providers concurrently. Each result is verified with a live stream check — only working sources are returned.
 
----
-
-## Quality Priority
-
-All sources are sorted in this order before being returned:
-
-<Steps>
-  <Step title="4K / 2160p" />
-  <Step title="1440p" />
-  <Step title="1080p" />
-  <Step title="720p" />
-  <Step title="480p → 360p → 240p" />
-  <Step title="HD → Auto → Unknown" />
-</Steps>
+| Key | Label |
+|-----|-------|
+| `vixsrc` | vixsrc |
+| `icefy` | Icefy |
+| `vidzee` | VidZee |
+| `vidnest` | VidNest |
+| `vidsrc` | VidSrc |
+| `vidrock` | VidRock |
+| `videasy` | Videasy |
 
 ---
 
 ## Source Object Reference
 
-<Tabs>
-  <Tab title="Raw (/api/movie, /api/tv)">
-    ```json
-    {
-      "url": "https://...",
-      "type": "hls | mp4 | mkv",
-      "quality": "1080p",
-      "provider": "VixSrc",
-      "audioTracks": [
-        { "language": "eng", "label": "English" }
-      ],
-      "headers": {
-        "Referer": "https://...",
-        "Origin": "https://..."
-      },
-      "vlc_url": "https://..."
-    }
-    ```
+```json
+{
+  "source": "vixsrc",
+  "label": "vixsrc",
+  "url": "/api?url=<encoded_stream_url>&vl=1"
+}
+```
 
-    <Warning>
-      `vlc_url` is identical to `url` on raw endpoints — it is **not** proxied. You must forward `headers` yourself when fetching the stream directly.
-    </Warning>
-  </Tab>
+<ResponseField name="source" type="string">
+  Internal provider key.
+</ResponseField>
 
-  <Tab title="Enriched (/api/stream/*, /api/download/*)">
-    ```json
-    {
-      "provider": "VixSrc",
-      "quality": "1080p",
-      "type": "hls",
-      "url": "https://vixsrc.to/playlist/...",
-      "is_hls": true,
-      "referer": "https://vixsrc.to/",
-      "ffmpeg_command": "ffmpeg -headers \"...\" -i \"https://...\" -c copy -bsf:a aac_adtstoasc output.mp4",
-      "download_url": null,
-      "vlc_url": "/api/proxy?url=...&headers=..."
-    }
-    ```
+<ResponseField name="label" type="string">
+  Human-readable provider name.
+</ResponseField>
 
-    <Info>
-      `download_url` is `null` for HLS streams — use `ffmpeg_command` instead. `vlc_url` is a pre-built proxied URL ready for VLC or any URL-capable player.
-    </Info>
-  </Tab>
-
-  <Tab title="Subtitle Object">
-    ```json
-    {
-      "url": "https://...",
-      "label": "English",
-      "format": "vtt | srt"
-    }
-    ```
-
-    Subtitle objects appear in the `subtitles` array on every scraping and stream endpoint. See the [Subtitles guide](/api-reference/subtitles) for filtering, deduplication, and usage details.
-  </Tab>
-</Tabs>
+<ResponseField name="url" type="string">
+  Proxied stream URL — routed through `/api` with CORS and m3u8 rewriting applied. Pass directly to HLS.js or any player.
+</ResponseField>
 
 ---
 

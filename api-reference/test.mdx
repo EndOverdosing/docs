@@ -1,0 +1,197 @@
+---
+title: "GET /api/test/{id}"
+api: "GET https://vyla-api.pages.dev/api/test/{id}"
+description: "Test individual sources for movies and TV episodes"
+---
+
+Test individual streaming sources to verify their availability and get direct stream URLs. This endpoint is useful for debugging or when you need to test a specific provider.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  TMDB ID. For movies use the movie ID, for TV use the series ID.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="source" type="string" required>
+  Source provider to test. Available sources:
+  - `vixsrc`
+  - `icefy` 
+  - `vidzee`
+  - `vidnest`
+  - `vidsrc`
+  - `vidrock`
+  - `videasy`
+</ParamField>
+
+<ParamField query="season" type="number" required="false">
+  Season number (required for TV episodes).
+</ParamField>
+
+<ParamField query="episode" type="number" required="false">
+  Episode number (required for TV episodes).
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+# Test movie source
+curl "https://vyla-api.pages.dev/api/test/550?source=vixsrc"
+
+# Test TV episode source  
+curl "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
+```
+
+```js JavaScript
+// Test movie source
+const res = await fetch("https://vyla-api.pages.dev/api/test/550?source=vixsrc");
+const data = await res.json();
+
+console.log(data.ok); // whether source is working
+console.log(data.url); // proxied stream URL
+
+// Test TV episode source
+const tvRes = await fetch(
+  "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
+);
+const tvData = await tvRes.json();
+```
+
+```python Python
+# Test movie source
+data = requests.get(
+  "https://vyla-api.pages.dev/api/test/550?source=vixsrc"
+).json()
+
+# Test TV episode source
+tv_data = requests.get(
+  "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
+).json()
+```
+
+```ts TypeScript
+// Test movie source
+const res = await fetch("https://vyla-api.pages.dev/api/test/550?source=vixsrc");
+const data = await res.json();
+const isWorking = data.ok;
+const streamUrl = data.url;
+
+// Test TV episode source
+const tvRes = await fetch(
+  "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vixsrc"
+);
+const tvData = await tvRes.json();
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="source" type="string" required>
+  The source provider that was tested
+</ResponseField>
+
+<ResponseField name="id" type="string" required>
+  TMDB ID that was tested
+</ResponseField>
+
+<ResponseField name="s" type="number | null" required>
+  Season number (null for movies)
+</ResponseField>
+
+<ResponseField name="e" type="number | null" required>
+  Episode number (null for movies)
+</ResponseField>
+
+<ResponseField name="ok" type="boolean" required>
+  Whether the source is working and returned a valid stream
+</ResponseField>
+
+<ResponseField name="url" type="string | null">
+  Proxied stream URL if successful, null if failed
+</ResponseField>
+
+<ResponseField name="raw_url" type="string | null">
+  Original unproxied stream URL if successful, null if failed
+</ResponseField>
+
+<ResponseField name="elapsed_ms" type="number" required>
+  Time taken to test the source in milliseconds
+</ResponseField>
+
+<ResponseField name="error" type="string | null" required>
+  Error message if the test failed, null if successful
+</ResponseField>
+
+<Tabs>
+  <Tab title="200 Success (Working Source)">
+    ```json
+    {
+      "source": "vixsrc",
+      "id": "550",
+      "s": null,
+      "e": null,
+      "ok": true,
+      "url": "/api?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F170060%3Ftoken%3D85f3d0c002e4aa3bff87759df221e319%26expires%3D1782963433%26h%3D1%26lang%3Den&vl=1",
+      "raw_url": "https://vixsrc.to/playlist/170060?token=85f3d0c002e4aa3bff87759df221e319&expires=1782963433&h=1&lang=en",
+      "elapsed_ms": 0,
+      "error": null
+    }
+    ```
+  </Tab>
+  <Tab title="200 Success (TV Episode)">
+    ```json
+    {
+      "source": "vixsrc",
+      "id": "1396",
+      "s": 1,
+      "e": 1,
+      "ok": true,
+      "url": "/api?url=https%3A%2F%2Fvixsrc.to%2Fplaylist%2F202976%3Ftoken%3D...&vl=1",
+      "raw_url": "https://vixsrc.to/playlist/202976?token=...",
+      "elapsed_ms": 0,
+      "error": null
+    }
+    ```
+  </Tab>
+  <Tab title="400 Error">
+    ```json
+    { "error": "missing source" }
+    ```
+  </Tab>
+  <Tab title="404 Error">
+    ```json
+    { "error": "not found" }
+    ```
+  </Tab>
+  <Tab title="404 Error (Failed Source)">
+    ```json
+    {
+      "source": "vidsrc",
+      "id": "550",
+      "s": null,
+      "e": null,
+      "ok": false,
+      "url": null,
+      "raw_url": null,
+      "elapsed_ms": 435,
+      "error": "source not found"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  This endpoint tests individual sources in isolation. Use the `/api/movie` or `/api/tv` endpoints to test all sources simultaneously and get only working results.
+</Note>
+
+## Available Sources
+
+- **vixsrc**: Reliable source with good quality streams
+- **icefy**: Alternative source with moderate availability  
+- **vidzee**: Good quality source when available
+- **vidnest**: Fast response times, moderate availability
+- **vidsrc**: Legacy source, often unavailable
+- **vidrock**: Alternative source, hit or miss availability
+- **videasy**: Decent quality source with reasonable response times

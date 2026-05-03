@@ -1,0 +1,128 @@
+---
+title: "GET /api/health"
+api: "GET https://vyla-api.pages.dev/api/health"
+description: "Check the status and health of the Vyla API service and its sources"
+---
+
+Check the overall health status of the Vyla API service and its connected sources.
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://vyla-api.pages.dev/api/health
+```
+
+```js JavaScript
+const res = await fetch("https://vyla-api.pages.dev/api/health");
+const data = await res.json();
+
+console.log(data.status); // overall health status
+console.log(data.sources); // individual source status
+```
+
+```python Python
+import requests
+
+data = requests.get("https://vyla-api.pages.dev/api/health").json()
+print(data["status"])
+print(data["sources"])
+```
+
+```ts TypeScript
+const res = await fetch("https://vyla-api.pages.dev/api/health");
+const data = await res.json();
+const status = data.status;
+const sources = data.sources;
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="status" type="string" required>
+  Overall health status of the API
+</ResponseField>
+
+<ResponseField name="timestamp" type="string" required>
+  ISO timestamp of when the health check was performed
+</ResponseField>
+
+<ResponseField name="tmdb" type="boolean" required>
+  TMDB API connection status
+</ResponseField>
+
+<ResponseField name="cache" type="number" required>
+  Current cache status/metrics
+</ResponseField>
+
+<ResponseField name="probe_id" type="string" required>
+  Current probe identifier
+</ResponseField>
+
+<ResponseField name="sources" type="object" required>
+  Status of each connected source
+
+  <Expandable title="Source object">
+    <ResponseField name="ok" type="boolean">
+      Whether the source is responding correctly
+    </ResponseField>
+
+    <ResponseField name="ms" type="number">
+      Response time in milliseconds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Tabs>
+  <Tab title="200 Success">
+    ```json
+    {
+      "status": "degraded",
+      "timestamp": "2026-05-03T03:32:30.812Z",
+      "tmdb": true,
+      "cache": 0,
+      "probe_id": "550",
+      "sources": {
+        "vixsrc": {
+          "ok": true,
+          "ms": 1095
+        },
+        "icefy": {
+          "ok": true,
+          "ms": 1351
+        },
+        "vidzee": {
+          "ok": true,
+          "ms": 2973
+        },
+        "vidnest": {
+          "ok": true,
+          "ms": 194
+        },
+        "vidsrc": {
+          "ok": false,
+          "ms": 435
+        },
+        "vidrock": {
+          "ok": false,
+          "ms": 1138
+        },
+        "videasy": {
+          "ok": true,
+          "ms": 1114
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Health check responses are real-time and reflect the current status of all connected sources. Response times are measured in milliseconds and indicate how quickly each source responded to the last probe.
+</Note>
+
+## Status Values
+
+- **healthy**: All systems operational
+- **degraded**: Some sources may be unavailable but core functionality remains  
+- **unhealthy**: Critical systems or multiple sources are down

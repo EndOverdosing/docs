@@ -6,194 +6,13 @@ description: Get up and running with Vyla API in under 5 minutes
 ## Pick your use case
 
 <CardGroup cols={2}>
-  <Card title="Embed a Player" href="#embed-a-player">
-    Drop a working video player into any page with one iframe — no code required
-  </Card>
   <Card title="Build Your Own Player" href="#build-your-own-player">
     Fetch sources as JSON and plug them into your own UI with HLS.js
   </Card>
-  <Card title="Download a Movie" href="#download-a-movie">
-    Get direct download links or ready-to-run ffmpeg commands for any title
-  </Card>
-  <Card title="Use the Proxy"href="#use-the-proxy">
-    Route any stream URL through Cloudflare to fix CORS issues
+  <Card title="Check Provider Health" href="#check-provider-health">
+    See which providers are up and how fast they respond
   </Card>
 </CardGroup>
-
----
-
-## Embed a Player
-
-The fastest way to get video playing. One `<iframe>`, zero configuration:
-
-<Tabs>
-  <Tab title="Movie">
-    ```html
-    <iframe
-      src="https://vyla-api.pages.dev/api/player?type=movie&id=550"
-      width="100%"
-      height="500"
-      allowfullscreen
-      frameborder="0"
-    ></iframe>
-    ```
-  </Tab>
-  <Tab title="TV Episode">
-    ```html
-    <iframe
-      src="https://vyla-api.pages.dev/api/player?type=tv&id=456&season=1&episode=1"
-      width="100%"
-      height="500"
-      allowfullscreen
-      frameborder="0"
-    ></iframe>
-    ```
-  </Tab>
-</Tabs>
-
-Replace `550` with any TMDB movie ID, or `456` with any TMDB series ID.
-
-<Tip>
-  **Finding TMDB IDs** — go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The ID is in the URL:
-  - `themoviedb.org/movie/550` → `id=550` (Fight Club)
-  - `themoviedb.org/tv/1396` → `id=1396` (Breaking Bad)
-</Tip>
-
----
-
-## Build Your Own Player
-
-<Steps>
-  <Step title="Fetch sources">
-    Choose between the basic or enriched endpoint depending on how much you need:
-
-    <CodeGroup>
-    ```bash Basic (single scrape pass)
-    curl https://vyla-api.pages.dev/api/movie?id=550
-    ```
-
-    ```bash Enriched (all providers in parallel)
-    curl https://vyla-api.pages.dev/api/stream/movie?id=550
-    ```
-    </CodeGroup>
-
-    <Info>
-      The enriched `/api/stream/movie` endpoint fans out across all 8 providers and returns `vlc_url`, `ffmpeg_command`, and `download_url` pre-built on every source.
-    </Info>
-  </Step>
-
-  <Step title="Play an HLS source with HLS.js">
-    ```html
-    <video id="player" controls></video>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-    <script>
-    async function loadMovie(tmdbId) {
-      const res = await fetch(`https://vyla-api.pages.dev/api/stream/movie?id=${tmdbId}`);
-      const data = await res.json();
-
-      if (!data.success || !data.sources.length) return;
-
-      const source = data.sources[0];
-      const video = document.getElementById("player");
-      const proxyBase = "https://vyla-api.pages.dev/api/proxy?url=";
-
-      if (source.type === "hls" && Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(proxyBase + encodeURIComponent(source.url));
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-      } else {
-        video.src = source.url;
-        video.play();
-      }
-    }
-
-    loadMovie(550);
-    </script>
-    ```
-
-    <Note>
-      `/api/stream/movie` returns `vlc_url` on every source — a pre-built proxy URL with headers already encoded. You can pass it directly to HLS.js without any additional encoding.
-    </Note>
-  </Step>
-
-  <Step title="Add subtitles">
-    ```js
-    data.subtitles.forEach((sub, i) => {
-      const track = document.createElement("track");
-      track.kind = "subtitles";
-      track.label = sub.label;
-      track.srclang = "en";
-      track.src = "https://vyla-api.pages.dev/api/proxy?url=" + encodeURIComponent(sub.url);
-      if (i === 0) track.default = true;
-      video.appendChild(track);
-    });
-    ```
-  </Step>
-</Steps>
-
----
-
-## Download a Movie
-
-<Steps>
-  <Step title="Get enriched sources">
-    ```bash
-    curl https://vyla-api.pages.dev/api/download/movie?id=550
-    ```
-  </Step>
-
-  <Step title="Choose your source type">
-    <Tabs>
-      <Tab title="MP4/MKV — direct download">
-        Use `download_url` — it's a pre-built link with all headers encoded:
-
-        ```js
-        const res = await fetch("https://vyla-api.pages.dev/api/download/movie?id=550");
-        const data = await res.json();
-
-        const directSources = data.sources.filter(s => !s.is_hls && s.download_url);
-
-        if (directSources.length) {
-          window.location.href = "https://vyla-api.pages.dev" + directSources[0].download_url;
-        }
-        ```
-      </Tab>
-      <Tab title="HLS — ffmpeg mux">
-        Copy `ffmpeg_command` from any HLS source and run it:
-
-        ```bash
-        ffmpeg -headers "Referer: https://vixsrc.to/\r\nOrigin: https://vixsrc.to\r\nUser-Agent: Mozilla/5.0\r\n" \
-          -i "https://vixsrc.to/playlist/170060?token=...&expires=...&h=1" \
-          -c copy -bsf:a aac_adtstoasc output.mp4
-        ```
-
-        <Warning>
-          HLS/playlist URLs cannot be downloaded as a single browser link. They must be muxed to MP4 using the provided `ffmpeg_command`.
-        </Warning>
-      </Tab>
-    </Tabs>
-  </Step>
-</Steps>
-
----
-
-## Use the Proxy
-
-Fix CORS errors when embedding streams from third-party CDNs:
-
-```js
-const streamUrl = "https://vixsrc.to/playlist/170060?token=...";
-const headers = { Referer: "https://vixsrc.to/", Origin: "https://vixsrc.to" };
-
-const proxiedUrl = "https://vyla-api.pages.dev/api/proxy"
-  + "?url=" + encodeURIComponent(streamUrl)
-  + "&headers=" + encodeURIComponent(btoa(JSON.stringify(headers)));
-```
-
-<Note>
-  The proxy automatically rewrites all m3u8 segment URLs so the **entire HLS stream** is tunneled — not just the manifest. You get one URL and the rest is handled transparently.
-</Note>
 
 ---
 
@@ -207,3 +26,141 @@ Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The
 | `themoviedb.org/movie/27205` | `27205` | Inception |
 | `themoviedb.org/tv/456` | `456` | The Simpsons |
 | `themoviedb.org/tv/1396` | `1396` | Breaking Bad |
+
+---
+
+## Build Your Own Player
+
+<Steps>
+  <Step title="Fetch all working sources">
+    <CodeGroup>
+    ```bash Movie
+    curl https://vyla-api.pages.dev/api/movie?id=550
+    ```
+
+    ```bash TV Episode
+    curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
+    ```
+    </CodeGroup>
+
+    Every source in the response has already been verified live — no dead URLs.
+  </Step>
+
+  <Step title="Play with HLS.js">
+    ```html
+    <video id="player" controls></video>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+    <script>
+    async function loadMovie(tmdbId) {
+      const res = await fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`);
+      const data = await res.json();
+
+      if (!data.sources.length) return;
+
+      const source = data.sources[0];
+      const video = document.getElementById("player");
+
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(source.url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      } else {
+        video.src = source.url;
+        video.play();
+      }
+    }
+
+    loadMovie(550);
+    </script>
+    ```
+
+    <Note>
+      The `url` field on every source is already proxied and CORS-safe — pass it directly to HLS.js with no additional encoding.
+    </Note>
+  </Step>
+
+  <Step title="Try the next source on failure">
+    ```js
+    async function loadWithFallback(tmdbId) {
+      const res = await fetch(`https://vyla-api.pages.dev/api/movie?id=${tmdbId}`);
+      const data = await res.json();
+      const sources = data.sources;
+      let index = 0;
+
+      function trySource() {
+        if (index >= sources.length) return;
+        const video = document.getElementById("player");
+        const hls = new Hls();
+
+        hls.on(Hls.Events.ERROR, (_, err) => {
+          if (err.fatal) { hls.destroy(); index++; trySource(); }
+        });
+
+        hls.loadSource(sources[index].url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      }
+
+      trySource();
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Check Provider Health
+
+```bash
+curl https://vyla-api.pages.dev/api/health
+```
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "tmdb": true,
+  "cache": 4,
+  "probe_id": "550",
+  "sources": {
+    "vixsrc":  { "ok": true,  "ms": 812 },
+    "icefy":   { "ok": true,  "ms": 340 },
+    "vidzee":  { "ok": true,  "ms": 1204 },
+    "vidnest": { "ok": true,  "ms": 980 },
+    "vidsrc":  { "ok": false, "ms": null },
+    "vidrock": { "ok": true,  "ms": 1540 },
+    "videasy": { "ok": true,  "ms": 1100 }
+  }
+}
+```
+
+`status` is `"ok"` only when every provider passes. `"degraded"` means at least one is down — the rest still work.
+
+---
+
+## Test a Single Provider
+
+Useful for debugging or checking why a specific source isn't appearing:
+
+```bash
+# Test vixsrc for Fight Club
+curl "https://vyla-api.pages.dev/api/test/550?source=vixsrc"
+
+# Test vidzee for Breaking Bad S1E1
+curl "https://vyla-api.pages.dev/api/test/1396?season=1&episode=1&source=vidzee"
+```
+
+```json
+{
+  "source": "vixsrc",
+  "id": "550",
+  "s": null,
+  "e": null,
+  "ok": true,
+  "url": "/api?url=<encoded>&vl=1",
+  "raw_url": "https://vixsrc.to/playlist/...",
+  "elapsed_ms": 923,
+  "error": null
+}
+```

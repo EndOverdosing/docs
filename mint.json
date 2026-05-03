@@ -74,28 +74,12 @@
             ]
         },
         {
-            "group": "Guides",
+            "group": "API Reference",
             "pages": [
-                "api-reference/subtitles",
-                "api-reference/errors"
-            ]
-        },
-        {
-            "group": "Core Endpoints",
-            "pages": [
+                "api-reference/health",
                 "api-reference/movie",
                 "api-reference/tv",
-                "api-reference/player",
-                "api-reference/proxy",
-                "api-reference/download",
-                "api-reference/scrape"
-            ]
-        },
-        {
-            "group": "Stream & Download",
-            "pages": [
-                "api-reference/stream-movie",
-                "api-reference/stream-tv"
+                "api-reference/test"
             ]
         }
     ],
