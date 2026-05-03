@@ -1,0 +1,52 @@
+---
+title: TV Subtitles
+description: Get all available subtitle tracks for a TV episode
+---
+
+# TV Subtitles
+
+Get all available subtitle tracks for a specific TV episode.
+
+## Endpoint
+
+```http
+GET /api/subtitles/tv/<tmdb_id>/<season>/<episode>
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| tmdb_id | string | The TMDB ID of the TV series |
+| season | number | The season number |
+| episode | number | The episode number |
+
+## Response
+
+Returns an array of subtitle tracks:
+
+```json
+[
+    {
+        "label": "English",
+        "file": "https://cache.vdrk.site/v1/vtt/tv/<id>/<s>/<e>/English.vtt"
+    },
+    {
+        "label": "Spanish",
+        "file": "https://cache.vdrk.site/v1/vtt/tv/<id>/<s>/<e>/Spanish.vtt"
+    }
+]
+```
+
+## Example
+
+```bash
+curl https://vyla-api.pages.dev/api/subtitles/tv/76479/1/1
+```
+
+## Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| label | string | The language label of the subtitle |
+| file | string | Direct URL to the VTT subtitle file |

@@ -1,0 +1,50 @@
+---
+title: Movie Subtitles
+description: Get all available subtitle tracks for a movie
+---
+
+# Movie Subtitles
+
+Get all available subtitle tracks for a specific movie.
+
+## Endpoint
+
+```http
+GET /api/subtitles/movie/<tmdb_id>
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| tmdb_id | string | The TMDB ID of the movie |
+
+## Response
+
+Returns an array of subtitle tracks:
+
+```json
+[
+    {
+        "label": "English",
+        "file": "https://cache.vdrk.site/v1/vtt/movie/<id>/English.vtt"
+    },
+    {
+        "label": "Spanish", 
+        "file": "https://cache.vdrk.site/v1/vtt/movie/<id>/Spanish.vtt"
+    }
+]
+```
+
+## Example
+
+```bash
+curl https://vyla-api.pages.dev/api/subtitles/movie/550
+```
+
+## Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| label | string | The language label of the subtitle |
+| file | string | Direct URL to the VTT subtitle file |

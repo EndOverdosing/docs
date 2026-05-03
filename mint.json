@@ -74,11 +74,23 @@
             ]
         },
         {
-            "group": "API Reference",
+            "group": "Core",
             "pages": [
                 "api-reference/health",
                 "api-reference/movie",
-                "api-reference/tv",
+                "api-reference/tv"
+            ]
+        },
+        {
+            "group": "Subtitles",
+            "pages": [
+                "api-reference/subtitles-movie",
+                "api-reference/subtitles-tv"
+            ]
+        },
+        {
+            "group": "Testing",
+            "pages": [
                 "api-reference/test"
             ]
         }
