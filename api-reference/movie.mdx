@@ -1,10 +1,10 @@
 ---
 title: "GET /api/movie"
 api: "GET https://vyla-api.pages.dev/api/movie"
-description: "All working streaming sources for a movie, fetched from every provider in parallel"
+description: "All working streaming sources and subtitle tracks for a movie, fetched from every provider in parallel"
 ---
 
-Fetches all 7 providers concurrently for a movie, verifies each result with a live stream check, and returns only the sources that are actually working. Every URL in the response is already proxied and CORS-safe.
+Fetches all 6 providers concurrently for a movie, verifies each result with a live stream check, and returns only the sources that are actually working. Subtitle tracks are fetched and included automatically. Every stream URL in the response is already proxied and CORS-safe.
 
 ### Query Parameters
 
@@ -23,7 +23,8 @@ curl https://vyla-api.pages.dev/api/movie?id=550
 const res = await fetch("https://vyla-api.pages.dev/api/movie?id=550");
 const data = await res.json();
 
-console.log(data.sources); // array of verified, proxied stream sources
+console.log(data.sources);   // verified, proxied stream sources
+console.log(data.subtitles); // VTT subtitle tracks
 ```
 
 ```python Python
@@ -34,12 +35,14 @@ data = requests.get(
   params={"id": 550}
 ).json()
 print(data["sources"])
+print(data["subtitles"])
 ```
 
 ```ts TypeScript
 const res = await fetch("https://vyla-api.pages.dev/api/movie?id=550");
 const data = await res.json();
 const sources = data.sources;
+const subtitles = data.subtitles;
 ```
 </CodeGroup>
 
@@ -63,6 +66,20 @@ const sources = data.sources;
   </Expandable>
 </ResponseField>
 
+<ResponseField name="subtitles" type="Subtitle[]" required>
+  Array of available subtitle tracks for the movie. Empty array if none found.
+
+  <Expandable title="Subtitle object">
+    <ResponseField name="label" type="string">
+      Language name of the subtitle track, e.g. `English`, `Spanish`.
+    </ResponseField>
+
+    <ResponseField name="file" type="string">
+      Direct URL to the VTT subtitle file.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
 <ResponseField name="meta" type="object | null">
   TMDB metadata for the movie. `null` if no `TMDB_API_KEY` is configured.
 </ResponseField>
@@ -81,6 +98,16 @@ const sources = data.sources;
           "source": "vidzee",
           "label": "VidZee",
           "url": "/api?url=https%3A%2F%2F...&vz=1"
+        }
+      ],
+      "subtitles": [
+        {
+          "label": "English",
+          "file": "https://cache.vdrk.site/v1/vtt/movie/550/English.vtt"
+        },
+        {
+          "label": "Spanish",
+          "file": "https://cache.vdrk.site/v1/vtt/movie/550/Spanish.vtt"
         }
       ],
       "meta": {

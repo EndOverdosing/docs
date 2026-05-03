@@ -1,13 +1,13 @@
 ---
 title: Introduction
-description: Stream any movie or TV show via TMDB ID — one API, seven providers, zero config.
+description: Stream any movie or TV show via TMDB ID — one API, six providers, subtitles included.
 ---
 
 <img src="/images/rounded-banner.png" alt="Vyla API" />
 
 ## What is Vyla API?
 
-Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 7 providers concurrently and serves them through a unified JSON interface. Pass any TMDB ID and get back every working source, already verified and proxied.
+Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 6 providers concurrently and serves them through a unified JSON interface. Pass any TMDB ID and get back every working source — already verified and proxied — along with multi-language subtitle tracks.
 
 <CardGroup cols={2}>
   <Card title="Stream URLs">
@@ -16,11 +16,11 @@ Vyla API is a **Cloudflare Pages API** that scrapes streaming sources from 7 pro
   <Card title="CORS Proxy">
     Every URL is routed through Cloudflare with full m3u8 segment rewriting — no CORS issues in any browser player
   </Card>
+  <Card title="Subtitles">
+    Multi-language VTT subtitle tracks included in every movie and TV response, or fetched standalone
+  </Card>
   <Card title="Health Check">
     Per-provider health endpoint shows which sources are up and their response times
-  </Card>
-  <Card title="Single Provider Testing">
-    Test any individual provider by key to debug or compare results
   </Card>
 </CardGroup>
 
@@ -40,11 +40,19 @@ All endpoints return `Access-Control-Allow-Origin: *` — no credentials needed.
 
 <CodeGroup>
 ```bash Movie Sources
-curl https://vyla-api.pages.dev/api/movie?id=27205
+curl https://vyla-api.pages.dev/api/movie?id=550
 ```
 
 ```bash TV Episode Sources
 curl "https://vyla-api.pages.dev/api/tv?id=1396&season=1&episode=1"
+```
+
+```bash Movie Subtitles
+curl https://vyla-api.pages.dev/api/subtitles/movie/550
+```
+
+```bash TV Subtitles
+curl https://vyla-api.pages.dev/api/subtitles/tv/76479/1/1
 ```
 
 ```bash Health Check
@@ -62,8 +70,10 @@ curl https://vyla-api.pages.dev/api/health
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/movie` | All working sources for a movie |
-| `GET /api/tv` | All working sources for a TV episode |
+| `GET /api/movie` | All working sources + subtitles for a movie |
+| `GET /api/tv` | All working sources + subtitles for a TV episode |
+| `GET /api/subtitles/movie/<id>` | Subtitle tracks for a movie |
+| `GET /api/subtitles/tv/<id>/<season>/<episode>` | Subtitle tracks for a TV episode |
 | `GET /api/health` | Per-provider health check |
 | `GET /api/test/<id>?source=<key>` | Test a single provider |
 
@@ -71,12 +81,11 @@ curl https://vyla-api.pages.dev/api/health
 
 ## Providers
 
-Sources are fetched from all 7 providers concurrently. Each result is verified with a live stream check — only working sources are returned.
+Sources are fetched from all 6 providers concurrently. Each result is verified with a live stream check — only working sources are returned.
 
 | Key | Label |
 |-----|-------|
 | `vixsrc` | vixsrc |
-| `icefy` | Icefy |
 | `vidzee` | VidZee |
 | `vidnest` | VidNest |
 | `vidsrc` | VidSrc |
@@ -105,6 +114,25 @@ Sources are fetched from all 7 providers concurrently. Each result is verified w
 
 <ResponseField name="url" type="string">
   Proxied stream URL — routed through `/api` with CORS and m3u8 rewriting applied. Pass directly to HLS.js or any player.
+</ResponseField>
+
+---
+
+## Subtitle Object Reference
+
+```json
+{
+  "label": "English",
+  "file": "https://cache.vdrk.site/v1/vtt/movie/550/English.vtt"
+}
+```
+
+<ResponseField name="label" type="string">
+  Language name of the subtitle track.
+</ResponseField>
+
+<ResponseField name="file" type="string">
+  Direct URL to the VTT subtitle file.
 </ResponseField>
 
 ---

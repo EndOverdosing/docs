@@ -1,10 +1,10 @@
 ---
 title: "GET /api/tv"
 api: "GET https://vyla-api.pages.dev/api/tv"
-description: "All working streaming sources for a TV episode, fetched from every provider in parallel"
+description: "All working streaming sources and subtitle tracks for a TV episode, fetched from every provider in parallel"
 ---
 
-Fetches all 7 providers concurrently for a TV episode, verifies each result with a live stream check, and returns only the sources that are actually working. Every URL in the response is already proxied and CORS-safe.
+Fetches all 6 providers concurrently for a TV episode, verifies each result with a live stream check, and returns only the sources that are actually working. Subtitle tracks are fetched and included automatically. Every stream URL in the response is already proxied and CORS-safe.
 
 ### Query Parameters
 
@@ -33,6 +33,7 @@ const res = await fetch(
 );
 const data = await res.json();
 console.log(data.sources);
+console.log(data.subtitles);
 ```
 
 ```python Python
@@ -50,6 +51,7 @@ const res = await fetch(
 );
 const data = await res.json();
 const sources = data.sources;
+const subtitles = data.subtitles;
 ```
 </CodeGroup>
 
@@ -73,6 +75,20 @@ const sources = data.sources;
   </Expandable>
 </ResponseField>
 
+<ResponseField name="subtitles" type="Subtitle[]" required>
+  Array of available subtitle tracks for the episode. Empty array if none found.
+
+  <Expandable title="Subtitle object">
+    <ResponseField name="label" type="string">
+      Language name of the subtitle track, e.g. `English`, `Arabic`.
+    </ResponseField>
+
+    <ResponseField name="file" type="string">
+      Direct URL to the VTT subtitle file.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
 <ResponseField name="meta" type="object | null">
   TMDB metadata for the episode. `null` if no `TMDB_API_KEY` is configured.
 </ResponseField>
@@ -91,6 +107,16 @@ const sources = data.sources;
           "source": "vidnest",
           "label": "VidNest",
           "url": "/api?url=https%3A%2F%2F...&vn=1"
+        }
+      ],
+      "subtitles": [
+        {
+          "label": "English",
+          "file": "https://cache.vdrk.site/v1/vtt/tv/1396/1/1/English.vtt"
+        },
+        {
+          "label": "Spanish",
+          "file": "https://cache.vdrk.site/v1/vtt/tv/1396/1/1/Spanish.vtt"
         }
       ],
       "meta": {

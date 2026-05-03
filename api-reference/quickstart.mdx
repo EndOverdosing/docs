@@ -7,7 +7,7 @@ description: Get up and running with Vyla API in under 5 minutes
 
 <CardGroup cols={2}>
   <Card title="Build Your Own Player" href="#build-your-own-player">
-    Fetch sources as JSON and plug them into your own UI with HLS.js
+    Fetch sources and subtitles as JSON and plug them into your own UI with HLS.js
   </Card>
   <Card title="Check Provider Health" href="#check-provider-health">
     See which providers are up and how fast they respond
@@ -32,7 +32,7 @@ Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The
 ## Build Your Own Player
 
 <Steps>
-  <Step title="Fetch all working sources">
+  <Step title="Fetch all working sources and subtitles">
     <CodeGroup>
     ```bash Movie
     curl https://vyla-api.pages.dev/api/movie?id=550
@@ -43,10 +43,10 @@ Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The
     ```
     </CodeGroup>
 
-    Every source in the response has already been verified live — no dead URLs.
+    Every source in the response has already been verified live — no dead URLs. Subtitles are included automatically.
   </Step>
 
-  <Step title="Play with HLS.js">
+  <Step title="Play with HLS.js and load subtitles">
     ```html
     <video id="player" controls></video>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
@@ -60,15 +60,20 @@ Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The
       const source = data.sources[0];
       const video = document.getElementById("player");
 
-      if (Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(source.url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-      } else {
-        video.src = source.url;
+      const hls = new Hls();
+      hls.loadSource(source.url);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        data.subtitles.forEach(sub => {
+          const track = document.createElement("track");
+          track.kind = "subtitles";
+          track.label = sub.label;
+          track.src = sub.file;
+          video.appendChild(track);
+        });
         video.play();
-      }
+      });
     }
 
     loadMovie(550);
@@ -76,7 +81,7 @@ Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The
     ```
 
     <Note>
-      The `url` field on every source is already proxied and CORS-safe — pass it directly to HLS.js with no additional encoding.
+      The `url` field on every source is already proxied and CORS-safe — pass it directly to HLS.js with no additional encoding. Subtitle `file` URLs are direct VTT links and can be used as `<track>` elements.
     </Note>
   </Step>
 
@@ -110,6 +115,28 @@ Go to [themoviedb.org](https://www.themoviedb.org) and search for any title. The
 
 ---
 
+## Fetch Subtitles Standalone
+
+You can fetch subtitle tracks independently without fetching stream sources:
+
+```bash
+# Movie subtitles
+curl https://vyla-api.pages.dev/api/subtitles/movie/550
+
+# TV episode subtitles
+curl https://vyla-api.pages.dev/api/subtitles/tv/1396/1/1
+```
+
+```json
+[
+  { "label": "English", "file": "https://cache.vdrk.site/v1/vtt/movie/550/English.vtt" },
+  { "label": "Spanish", "file": "https://cache.vdrk.site/v1/vtt/movie/550/Spanish.vtt" },
+  { "label": "French",  "file": "https://cache.vdrk.site/v1/vtt/movie/550/French.vtt" }
+]
+```
+
+---
+
 ## Check Provider Health
 
 ```bash
@@ -125,7 +152,6 @@ curl https://vyla-api.pages.dev/api/health
   "probe_id": "550",
   "sources": {
     "vixsrc":  { "ok": true,  "ms": 812 },
-    "icefy":   { "ok": true,  "ms": 340 },
     "vidzee":  { "ok": true,  "ms": 1204 },
     "vidnest": { "ok": true,  "ms": 980 },
     "vidsrc":  { "ok": false, "ms": null },
