@@ -1,0 +1,143 @@
+---
+title: Movie Downloads
+api: "GET https://vyla-api.pages.dev/api/downloads/movie/{tmdb_id}"
+description: Fetch direct download links for movies with quality labels and file sizes.
+---
+
+The movie downloads endpoint returns direct download links sourced from `source1.com`. Each link comes with a quality label, file size, and format — useful for building download buttons or offline-capable applications.
+
+---
+
+## API Endpoint
+
+<api>GET https://vyla-api.pages.dev/api/downloads/movie/{tmdb_id}</api>
+
+### Path Parameters
+
+<ParamField path="tmdb_id" type="string" required>
+  TMDB movie ID.
+</ParamField>
+
+---
+
+## Request
+
+<CodeGroup>
+```bash cURL
+curl https://vyla-api.pages.dev/api/downloads/movie/550
+```
+
+```javascript JavaScript
+const res  = await fetch('https://vyla-api.pages.dev/api/downloads/movie/550');
+const data = await res.json();
+
+data.downloads.forEach(dl => {
+  console.log(`${dl.quality} (${dl.size}): ${dl.url}`);
+});
+```
+
+```python Python
+import requests
+
+data = requests.get(
+  'https://vyla-api.pages.dev/api/downloads/movie/550'
+).json()
+
+for dl in data['downloads']:
+    print(f"{dl['quality']} ({dl['size']}): {dl['url']}")
+```
+</CodeGroup>
+
+---
+
+## Response
+
+```json
+{
+  "downloads": [
+    {
+      "url": "https://source1.com/download/fight-club-1080p.mp4",
+      "quality": "1080p",
+      "size": "2.14 GB",
+      "format": "MP4"
+    },
+    {
+      "url": "https://source1.com/download/fight-club-720p.mp4",
+      "quality": "720p",
+      "size": "1.08 GB",
+      "format": "MP4"
+    },
+    {
+      "url": "https://source1.com/download/fight-club-480p.mp4",
+      "quality": "480p",
+      "size": "512.00 MB",
+      "format": "MP4"
+    }
+  ]
+}
+```
+
+---
+
+## Response Fields
+
+<ResponseField name="downloads" type="Download[]" required>
+  Array of available download options. Empty array if none are found.
+
+  <Expandable title="Download object">
+    <ResponseField name="url" type="string">
+      Direct download URL.
+    </ResponseField>
+    <ResponseField name="quality" type="string">
+      Quality label, e.g. `1080p`, `720p`, `480p`, `4K`. `"Unknown"` if the provider doesn't supply one.
+    </ResponseField>
+    <ResponseField name="size" type="string | null">
+      Human-readable file size, e.g. `2.14 GB`, `512.00 MB`. `null` if unavailable.
+    </ResponseField>
+    <ResponseField name="format" type="string">
+      Container format, e.g. `MP4`, `MKV`. Uppercase.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Status Codes
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Downloads found and returned |
+| `404` | No downloads found for this title |
+| `500` | Server error |
+
+---
+
+## Usage Pattern
+
+```javascript
+async function addMovieDownloadButtons(tmdbId, containerEl) {
+  const res = await fetch(
+    `https://vyla-api.pages.dev/api/downloads/movie/${tmdbId}`
+  );
+
+  if (!res.ok) {
+    containerEl.textContent = 'No downloads available';
+    return;
+  }
+
+  const { downloads } = await res.json();
+
+  downloads.forEach(dl => {
+    const a = document.createElement('a');
+    a.href    = dl.url;
+    a.target  = '_blank';
+    a.rel     = 'noopener noreferrer';
+    a.textContent = `Download ${dl.quality}${dl.size ? ` — ${dl.size}` : ''}`;
+    containerEl.appendChild(a);
+  });
+}
+```
+
+<Warning>
+  Download links are sourced from a third-party provider and may expire or become unavailable. Always handle `404` responses gracefully.
+</Warning>
