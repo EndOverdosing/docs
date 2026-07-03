@@ -37,7 +37,19 @@ const res = await fetch('https://missourimonster-x.hf.space/movie?id=550', {
 });
 ```
 
-Tokens are HMAC-signed and verified server-side without shared in-memory state, so they work correctly across all server workers. Tokens expire after 30 minutes — re-fetch from `/api/auth` and retry when expired.
+Tokens are HMAC-signed and verified server-side without shared in-memory state, so they work correctly across all server workers. Tokens expire after 30 minutes. Before they expire, refresh them with `POST /api/auth/refresh` instead of re-issuing from `/api/auth` — this avoids sending your API key to the browser again.
+
+### Step 3 — Refresh the token (client-side)
+
+```javascript
+const res = await fetch('https://missourimonster-x.hf.space/api/auth/refresh', {
+  method: 'POST',
+  headers: { 'X-Session-Token': token }
+});
+const { token: newToken } = await res.json();
+```
+
+Tokens can be refreshed up to 10 minutes after they expire. Refresh preserves the tier of the original token. If the API key used to issue the token has since been disabled or changed tier, refresh will fail and you must re-authenticate via `/api/auth`.
 
 ### Token errors
 
@@ -46,6 +58,7 @@ Tokens are HMAC-signed and verified server-side without shared in-memory state, 
 | `Missing API key` | `POST /api/auth` was called without a valid API key. |
 | `Invalid or expired session token` | Token is malformed, tampered with, or older than 30 minutes. Re-fetch from `/api/auth` and retry. |
 | `Access denied` | Token was issued from a `public`-tier key and was used to access a proxied stream. |
+| `Session token cannot be refreshed` | Token is malformed, more than 10 minutes past expiry, or its source API key was disabled/changed. Re-fetch from `/api/auth`. |
 
 ---
 
@@ -130,7 +143,7 @@ Use **API keys** if your code runs on a server where the key is never sent to th
 | Route | Auth required | `public` key/token allowed |
 |-------|---------------|---------------------------|
 | `GET /` | No | Yes |
-| `POST /api/auth` | Yes (API key) | Yes |
+| `POST /api/auth` | Yes | Yes |
 | `GET /api/health` | Yes | Yes |
 | `GET /api/subtitles/*` | Yes | Yes |
 | `GET /api/downloads/*` | Yes | Yes |
@@ -138,4 +151,5 @@ Use **API keys** if your code runs on a server where the key is never sent to th
 | `GET /tv` | Yes | No |
 | `GET /api/test/:id` | Yes | Yes |
 | `GET /api/debug/:id` | Yes | Yes |
+| `POST /api/auth/refresh` | Yes (session token) | Yes |
 | `GET /api?url=` | Yes | No |
