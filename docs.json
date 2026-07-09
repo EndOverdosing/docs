@@ -26,7 +26,7 @@
   "topbarLinks": [
     {
       "name": "GitHub",
-      "url": "https://github.com/EndOverdosing/Vyla-Player-API"
+      "url": "https://github.com/EndOverdosing/stream-api"
     },
     {
       "name": "Discord",
@@ -60,7 +60,7 @@
     {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/EndOverdosing/Vyla-Player-API"
+      "url": "https://github.com/EndOverdosing/stream-api"
     },
     {
       "name": "Discord",
@@ -75,7 +75,7 @@
     {
       "name": "Health Status",
       "icon": "heart-pulse",
-      "url": "https://missourimonster-x.hf.space/api/health"
+      "url": "https://api.vyla.cc/api/health"
     }
   ],
   "navigation": {
@@ -89,6 +89,7 @@
               "introduction",
               "authentication",
               "player",
+              "self-hosting",
               "api-reference/quickstart"
             ]
           },
@@ -174,14 +175,14 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/EndOverdosing/Vyla-Player-API",
+      "github": "https://github.com/EndOverdosing/stream-api",
       "discord": "https://discord.gg/5eqRhKeywG",
-      "website": "https://missourimonster-x.hf.space"
+      "website": "https://api.vyla.cc"
     }
   },
   "api": {
     "mdx": {
-      "server": "https://missourimonster-x.hf.space",
+      "server": "https://api.vyla.cc",
       "auth": {
         "method": "bearer"
       }

@@ -1,0 +1,108 @@
+---
+title: "Self-Hosting"
+description: "Run your own instance of the Vyla API"
+---
+
+## Overview
+
+The Vyla API is a Node.js server with no required external services besides Postgres for API key storage. It runs as a single process that forks into multiple workers via the built-in `cluster` module, with an in-memory cache shared across workers through the primary process.
+
+## Requirements
+
+- Node.js 18 or later
+- A Postgres database (the API uses [Neon](https://neon.tech) via `@neondatabase/serverless`, but any Postgres-compatible connection string will work)
+- A TMDB API key if you want title validation and metadata lookups
+
+## Environment variables
+
+Create a `.env` file in the project root:
+
+```bash
+DATABASE_URL=postgres://user:password@host/dbname
+TOKEN_SECRET=a-random-string-at-least-32-characters-long
+
+TMDB_API_KEY=
+GA_MEASUREMENT_ID=
+GA_API_SECRET=
+
+PORT=7860
+WORKER_COUNT=1
+ENABLE_DEBUG_ROUTE=false
+PROXY_STREAMS=false
+PROXY_URL=
+```
+
+<Card title="Variable reference">
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | Postgres connection string. Used to store and validate API keys. |
+| `TOKEN_SECRET` | Yes | HMAC signing secret for session tokens. Must be at least 32 characters. Generate one with `openssl rand -hex 32`. |
+| `TMDB_API_KEY` | No | Enables TMDB-based ID validation, metadata lookups, and anime detection. Some sources will not work without it. |
+| `GA_MEASUREMENT_ID` / `GA_API_SECRET` | No | Enables Google Analytics event reporting. Leave blank to disable. |
+| `PORT` | No | Port the server listens on. Defaults to `7860`. |
+| `WORKER_COUNT` | No | Number of cluster workers to fork. Defaults to `1` locally, capped at `2` when running on Hugging Face Spaces. |
+| `ENABLE_DEBUG_ROUTE` | No | Set to `true` to enable `/api/debug/:id`. Keep this `false` in production — it exposes upstream request/response headers and raw source output. |
+| `PROXY_STREAMS` | No | Set to `true` to route stream playback through your own server's `/api` proxy endpoint instead of direct URLs. |
+| `PROXY_URL` | No | An external proxy base URL to use instead of the built-in `/api` proxy. Only used if `PROXY_STREAMS` is not set. |
+</Card>
+
+## Database setup
+
+No manual migration is needed. On startup, `initAuth()` calls `ensureApiKeysTable()` and `ensurePublicKey()`, which create the `api_keys` table and seed a default public key if one doesn't already exist:
+
+```sql
+CREATE TABLE IF NOT EXISTS public.api_keys (
+    key TEXT PRIMARY KEY,
+    type TEXT NOT NULL DEFAULT 'standard',
+    rpm INTEGER NOT NULL DEFAULT 100,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Key types are `public`, `standard`, and `partner`. The seeded public key is `public_api_key` with a default rate limit of 10 requests per minute. Insert additional keys directly into this table to grant `standard` or `partner` access.
+
+Keys are cached in memory and refreshed from the database every 5 minutes. Disabling a key (`active = false`) takes effect on the next refresh cycle, not immediately.
+
+## Installing and running
+
+```bash
+git clone https://github.com/EndOverdosing/stream-api
+cd stream-api
+npm install
+node server.js
+```
+
+The server listens on `http://localhost:7860` by default. Visit `/health` to confirm it's running and check which sources are currently reachable from your host.
+
+## Running with multiple workers
+
+Setting `WORKER_COUNT` above `1` forks additional worker processes via `cluster`. The primary process holds a shared in-memory cache (capped at 1500 entries, pruned every 30 seconds) and relays cache reads/writes between workers over IPC, so cached stream results are shared across all workers rather than duplicated per-process.
+
+```bash
+WORKER_COUNT=4 node server.js
+```
+
+Each worker independently loads source modules and handles its own outbound fetches; only the cache and shared concurrency limits are coordinated through the primary.
+
+## Network considerations
+
+Several sources are documented in `config.js` as blocked on datacenter IPs (Hugging Face specifically, but this applies to most cloud hosts). If a source's `getStream` consistently returns nothing from your host but works from a residential connection, this is almost always why — a residential or datacenter-friendly proxy in front of outbound requests is the usual fix rather than a code issue.
+
+If you're self-hosting behind Hugging Face Spaces, note the `IS_HF` flag (`!!process.env.SPACE_ID`) changes several defaults: fetch timeouts shrink, worker count is capped at 2, and the `/api` proxy takes a different internal-token code path to work around HF's rate limiting on `/api/auth`.
+
+## Reverse proxy / TLS
+
+The server speaks plain HTTP. For a public deployment, put it behind a reverse proxy (Caddy, Nginx, Cloudflare Tunnel, etc.) to terminate TLS and forward to `PORT`. CORS is already permissive (`Access-Control-Allow-Origin: *`) at the application layer, so no additional CORS configuration is needed on the proxy.
+
+## Verifying your deployment
+
+Once running, walk through these in order:
+
+1. `GET /health` — confirms the process is up and reports per-source reachability from your host. Treat this as a rough signal, not ground truth; it explicitly disclaims reliability for this reason.
+2. `GET /api/test/155?source=vidrock` — runs a real resolution for a single source against a known TMDB movie ID and returns `ok: true/false` with an error if it failed.
+3. `GET /api/debug/155?source=vidrock` — only if `ENABLE_DEBUG_ROUTE=true`. Returns the full request/response trace, headers, and raw candidate URLs for a single source, for diagnosing why a source is failing.
+
+<Warning>
+Leave `ENABLE_DEBUG_ROUTE` unset or `false` in any publicly reachable deployment. The debug route reflects upstream request headers, response headers, and raw stream URLs back in the response body, which can leak internal proxy tokens and CDN details to anyone who can reach the endpoint.
+</Warning>
