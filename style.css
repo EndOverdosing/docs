@@ -1,0 +1,11 @@
+:root {
+    --table-header-text: #000000;
+}
+
+.dark {
+    --table-header-text: #ffffff;
+}
+
+table th {
+    color: var(--table-header-text) !important;
+}
