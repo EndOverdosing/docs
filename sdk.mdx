@@ -1,0 +1,144 @@
+---
+title: "SDK Reference"
+description: "Access Vyla's stream providers, subtitles, and downloads directly from your Node.js application."
+---
+
+The Vyla SDK is a JavaScript/TypeScript wrapper that allows you to scrape stream sources directly from your own server environment instead of using the Vyla REST API. This gives you control over the execution lifecycle, removes REST API key requirements, and improves reliability.
+
+---
+
+## Installation
+
+Install the SDK in your project using your preferred package manager:
+
+```bash
+npm install @vyla-entertainment/sdk
+```
+
+```bash
+pnpm install @vyla-entertainment/sdk
+```
+
+---
+
+## Initialization
+
+Initialize the SDK by importing it and passing your TMDB API key. This key is used to resolve media metadata, validate IDs, and translate TMDB IDs to external anime providers like AniList.
+
+```javascript
+import VylaSDK from "@vyla-entertainment/sdk";
+
+const sdk = new VylaSDK({
+  tmdbApiKey: "YOUR_TMDB_API_KEY"
+});
+```
+
+---
+
+## Getting Streams
+
+You can fetch stream URLs directly from individual providers. To get a list of active provider keys, use the `getSources` method first.
+
+### Fetch Movie Stream
+
+```javascript
+const movieResult = await sdk.getStream("vidrock", "155");
+```
+
+### Fetch TV Show Stream
+
+```javascript
+const tvResult = await sdk.getStream("vidrock", "1399", "1", "1");
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `key` | `string` | Yes | The unique key identifier for the target source (e.g., `"vidrock"`). |
+| `id` | `string` | Yes | The TMDB ID of the movie or show. |
+| `s` | `string \| number` | No | The season number (required for TV shows). |
+| `e` | `string \| number` | No | The episode number (required for TV shows). |
+| `clientIP` | `string` | No | The IP address of the client, used by some providers for geo-verification. |
+
+---
+
+## Getting Subtitles
+
+Fetch multi-language subtitle tracks directly from supported subtitle mirrors.
+
+```javascript
+const movieSubs = await sdk.getSubtitles("155");
+
+const tvSubs = await sdk.getSubtitles("1399", "1", "1");
+```
+
+### Response Format
+
+The returned array contains objects representing individual track files:
+
+```json
+[
+  {
+    "label": "English",
+    "file": "https://sub.vdrk.site/v1/vtt/movie/155/English.vtt",
+    "type": "vtt",
+    "source": "v1"
+  }
+]
+```
+
+---
+
+## Getting Downloads
+
+Retrieve direct download links for movies or TV episodes with file sizes and quality indicators.
+
+```javascript
+const movieDownloads = await sdk.getDownloads("155");
+
+const tvDownloads = await sdk.getDownloads("1399", "1", "1");
+```
+
+### Response Format
+
+```json
+[
+  {
+    "url": "https://example.com/download/file.mp4",
+    "quality": "1080p",
+    "size": "2.14 GB",
+    "format": "MP4"
+  }
+]
+```
+
+---
+
+## Source and Health Management
+
+### Get All Providers
+
+List the configured scraper sources. You can optionally exclude sources that have been marked as temporarily disabled.
+
+```javascript
+const activeSources = sdk.getSources(true);
+const allSources = sdk.getSources(false);
+```
+
+### Probe Single Source Health
+
+Check the status and response latency of a specific provider.
+
+```javascript
+const health = await sdk.probeSource("vidrock");
+```
+
+### Response Format
+
+```json
+{
+  "ok": true,
+  "ms": 1240
+}
+```
