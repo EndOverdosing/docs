@@ -1,81 +1,131 @@
 ---
 title: "SDK Reference"
-description: "Access Vyla's stream providers, subtitles, and downloads directly from your Node.js application."
+description: "Scrape video streams, fetch subtitles, retrieve download links, and monitor provider health directly from your Node.js application."
 ---
 
-The Vyla SDK is a JavaScript/TypeScript wrapper that allows you to scrape stream sources directly from your own server environment instead of using the Vyla REST API. This gives you control over the execution lifecycle, removes REST API key requirements, and improves reliability.
+The **Vyla SDK** (`@vyla-entertainment/sdk`) is a server-side JavaScript/TypeScript framework that provides direct access to Vyla's stream scrapers, health probes, download resolvers, and subtitle providers.
+
+By embedding the SDK directly into your backend application, you execute scrapers locally within your own environment. This eliminates REST API rate limits, reduces network latency, and gives you total control over execution timeouts, IP forwarding, and headers.
+
+---
+
+## Features
+
+- **Direct-to-Client Playback**: Scraped streams link directly to source CDNs. No proxy server overhead required unless specified by provider headers.
+- **Built-In Health Probing**: Monitor latency and uptime per provider with built-in health check utilities.
+- **Automated Anime Sub/Dub Routing**: Automatically configures audio track requirements (`sub` vs `dub`) based on provider naming conventions.
+- **Multi-Source Subtitle Aggregation**: Merges subtitle tracks from multiple redundant subtitle mirrors into a unified VTT/SRT format.
+- **Metadata Fallbacks**: Automatically maps TMDB IDs to external IDs (such as IMDB and AniList) for smooth stream lookups.
 
 ---
 
 ## Installation
 
-Install the SDK in your project using your preferred package manager:
+Install the package into your Node.js backend using your package manager of choice:
 
-```bash
+<CodeGroup>
+```bash npm
 npm install @vyla-entertainment/sdk
 ```
 
-```bash
+```bash pnpm
 pnpm install @vyla-entertainment/sdk
 ```
+
+```bash yarn
+yarn add @vyla-entertainment/sdk
+```
+</CodeGroup>
+
+> **Note**: Node.js **v18+** is required due to modern standard `fetch` and `AbortSignal.timeout` usage.
 
 ---
 
 ## Initialization
 
-Initialize the SDK by importing it and passing your TMDB API key. This key is used to resolve media metadata, validate IDs, and translate TMDB IDs to external anime providers like AniList.
+Initialize the `VylaSDK` client by supplying your **TMDB API Key**. The key resolves media metadata, validates movie/TV show IDs, and translates TMDB IDs into AniList IDs for anime sources.
 
 ```javascript
 import VylaSDK from "@vyla-entertainment/sdk";
 
 const sdk = new VylaSDK({
-  tmdbApiKey: "YOUR_TMDB_API_KEY"
+  tmdbApiKey: process.env.TMDB_API_KEY, // Required for metadata resolution
 });
 ```
 
 ---
 
-## Getting Streams
+## Core Methods
 
-You can fetch stream URLs directly from individual providers. To get a list of active provider keys, use the `getSources` method first.
+### `getStream(key, id, s?, e?, clientIP?)`
 
-### Fetch Movie Stream
-
-```javascript
-const movieResult = await sdk.getStream("vidrock", "155");
-```
-
-### Fetch TV Show Stream
+Scrapes video stream URLs and playability headers for a specified provider key.
 
 ```javascript
-const tvResult = await sdk.getStream("vidrock", "1399", "1", "1");
+// Fetch a movie stream (TMDB ID: 155 - The Dark Knight)
+const movieStream = await sdk.getStream("sourcename", "155");
+
+// Fetch a TV show episode (TMDB ID: 1399, Season 1, Episode 1)
+const tvStream = await sdk.getStream("sourcename", "1399", 1, 1);
+
+// Pass client IP for providers that use geo-verification
+const geoStream = await sdk.getStream("sourcename", "155", null, null, "203.0.113.195");
 ```
 
-### Parameters
+#### Parameters
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `key` | `string` | Yes | The unique key identifier for the target source (e.g., `"vidrock"`). |
-| `id` | `string` | Yes | The TMDB ID of the movie or show. |
-| `s` | `string \| number` | No | The season number (required for TV shows). |
-| `e` | `string \| number` | No | The episode number (required for TV shows). |
-| `clientIP` | `string` | No | The IP address of the client, used by some providers for geo-verification. |
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `key` | `string` | **Yes** | — | Unique key identifier for the provider (e.g. `"sourcename"`, `"sourcename"`, `"sourcename"`). |
+| `id` | `string` | **Yes** | — | TMDB media ID (e.g., `"155"`). |
+| `s` | `string \| number` | **No** | `null` | Season number (required for TV shows). |
+| `e` | `string \| number` | **No** | `null` | Episode number (required for TV shows). |
+| `clientIP` | `string` | **No** | `null` | End-user IP address forwarded for geo-restricted scrapers. |
+
+#### Example Response Format
+
+```json
+{
+  "url": "https://example-cdn.com/hls/manifest.m3u8",
+  "quality": "auto",
+  "isM3U8": true,
+  "headers": {
+    "Referer": "https://example.com/",
+    "Origin": "https://example.com"
+  },
+  "allUrls": [
+    {
+      "url": "https://example-cdn.com/hls/manifest.m3u8",
+      "quality": "1080p",
+      "isM3U8": true
+    }
+  ]
+}
+```
 
 ---
 
-## Getting Subtitles
+### `getSubtitles(id, s?, e?)`
 
-Fetch multi-language subtitle tracks directly from supported subtitle mirrors.
+Fetches subtitle files aggregated across multiple subtitle backend mirrors (`v1`, `v2`, `febbox`). Returns clean VTT and SRT tracks.
 
 ```javascript
+// Fetch movie subtitles
 const movieSubs = await sdk.getSubtitles("155");
 
-const tvSubs = await sdk.getSubtitles("1399", "1", "1");
+// Fetch TV show episode subtitles
+const tvSubs = await sdk.getSubtitles("1399", 1, 1);
 ```
 
-### Response Format
+#### Parameters
 
-The returned array contains objects representing individual track files:
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | — | TMDB media ID. |
+| `s` | `string \| number` | **No** | `null` | Season number (required for TV shows). |
+| `e` | `string \| number` | **No** | `null` | Episode number (required for TV shows). |
+
+#### Example Response Format
 
 ```json
 [
@@ -84,28 +134,36 @@ The returned array contains objects representing individual track files:
     "file": "https://sub.vdrk.site/v1/vtt/movie/155/English.vtt",
     "type": "vtt",
     "source": "v1"
+  },
+  {
+    "label": "Spanish",
+    "file": "https://fed-subs.pstream.mov/subtitles/spanish.srt",
+    "type": "srt",
+    "source": "febbox"
   }
 ]
 ```
 
 ---
 
-## Getting Downloads
+### `getDownloads(id, s?, e?)`
 
-Retrieve direct download links for movies or TV episodes with file sizes and quality indicators.
+Fetches direct downloadable media files (MP4/MKV) paired with resolution and file size descriptors.
 
 ```javascript
-const movieDownloads = await sdk.getDownloads("155");
+// Movie downloads
+const downloads = await sdk.getDownloads("155");
 
-const tvDownloads = await sdk.getDownloads("1399", "1", "1");
+// TV Episode downloads
+const tvDownloads = await sdk.getDownloads("1399", 1, 1);
 ```
 
-### Response Format
+#### Example Response Format
 
 ```json
 [
   {
-    "url": "https://example.com/download/file.mp4",
+    "url": "https://download-node.com/file/the-dark-knight-1080p.mp4",
     "quality": "1080p",
     "size": "2.14 GB",
     "format": "MP4"
@@ -115,30 +173,156 @@ const tvDownloads = await sdk.getDownloads("1399", "1", "1");
 
 ---
 
-## Source and Health Management
+## Provider & Health Management
 
-### Get All Providers
+### `getSources(excludeDisabled?)`
 
-List the configured scraper sources. You can optionally exclude sources that have been marked as temporarily disabled.
+Retrieves provider configurations registered in the SDK.
 
 ```javascript
-const activeSources = sdk.getSources(true);
+// Get all sources including temporarily disabled ones
 const allSources = sdk.getSources(false);
+
+// Get only active/enabled sources
+const activeSources = sdk.getSources(true);
 ```
 
-### Probe Single Source Health
+#### Parameters
 
-Check the status and response latency of a specific provider.
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `excludeDisabled` | `boolean` | **No** | `false` | When `true`, filters out providers marked as disabled (`disabled: true`). |
+
+---
+
+### `probeSource(key)`
+
+Executes a health ping test against a single provider to determine current availability and latency using a probe payload (`TMDB ID: 155`).
 
 ```javascript
 const health = await sdk.probeSource("vidrock");
+console.log(health);
+// Output: { ok: true, ms: 840 }
 ```
 
-### Response Format
+---
+
+### `probeAllSources()`
+
+Executes health tests in parallel across all non-disabled provider modules.
+
+```javascript
+const results = await sdk.probeAllSources();
+console.log(results);
+```
+
+#### Example Response Format
 
 ```json
 {
-  "ok": true,
-  "ms": 1240
+  "sourcename1": { "ok": true, "ms": 420 },
+  "sourcename2": { "ok": true, "ms": 1150 },
+  "sourcename3": { "ok": false, "ms": null }
 }
+```
+
+---
+
+## Provider Metadata Properties
+
+When calling `getSources()`, each provider entry returns metadata describing its features and streaming behavior:
+
+```javascript
+{
+  key: 'example',
+  label: 'Example',
+  sourceFile: 'example',
+  proxyParam: 'ex',
+  timeout: 20000,
+  jitter: 800,
+  retries: 3,
+  multiUrl: true,
+  skipProxy: false,
+  cdnHeaders: [{
+    pattern: /./,
+    headers: {
+      Referer: 'https://example.com/',
+      Origin: 'https://example.com'
+    }
+  }]
+}
+```
+
+### Property Reference
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `key` | `string` | Unique identifier used in `getStream()` and `probeSource()`. |
+| `label` | `string` | Human-readable name for UI display. |
+| `skipProxy` | `boolean` | When `true`, stream URLs can be fed directly to web video players (e.g., HLS.js, Video.js) without needing an intermediate backend proxy. |
+| `multiUrl` | `boolean` | Indicates whether the source returns multiple stream resolution choices. |
+| `timeout` | `number` | Internal request timeout threshold in milliseconds. |
+| `retries` | `number` | Max automatic retry attempts executed by health/stream scrapers. |
+| `cdnHeaders` | `Array` | Regex pattern matching rules detailing required request headers (`Referer`, `Origin`) needed to playback stream segments without `403 Forbidden` errors. |
+| `disabled` | `boolean` | Set to `true` if a source is down or undergoing maintenance. |
+
+---
+
+## Practical Express.js Backend Example
+
+Here is an example showing how to serve stream links to your client web application while handling custom CDN playback headers and subtitle merging:
+
+```javascript
+import express from "express";
+import VylaSDK from "@vyla-entertainment/sdk";
+
+const app = express();
+const sdk = new VylaSDK({ tmdbApiKey: process.env.TMDB_API_KEY });
+
+// Scrape stream route
+app.get("/api/stream", async (req, res) => {
+  const { provider, tmdbId, season, episode } = req.query;
+  const clientIP = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+
+  try {
+    const streamData = await sdk.getStream(
+      provider,
+      tmdbId,
+      season || null,
+      episode || null,
+      clientIP
+    );
+
+    if (!streamData || !streamData.url) {
+      return res.status(404).json({ error: "No stream found for this provider" });
+    }
+
+    return res.json({
+      success: true,
+      provider,
+      stream: streamData,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Fetch subtitles route
+app.get("/api/subtitles", async (req, res) => {
+  const { tmdbId, season, episode } = req.query;
+
+  try {
+    const subtitles = await sdk.getSubtitles(
+      tmdbId,
+      season || null,
+      episode || null
+    );
+
+    return res.json({ subtitles });
+  } catch (error) {
+    return res.status(500).json({ subtitles: [] });
+  }
+});
+
+app.listen(3000, () => console.log("Vyla SDK Server running on port 3000"));
 ```
